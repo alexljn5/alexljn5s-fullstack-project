@@ -1,1 +1,11 @@
-sudo docker exec -i tools4ever_database_container mysql -u root -ppassword tools4ever_database_container < tools4everdatabase.sql
+sudo docker exec -i tools4ever_database_container mysql -u root -proot tools4ever_database_container < tools4everdatabase.sql
+//this one works
+docker exec -i tools4ever_database_container mysql -u root -proot tools4ever_db < tools4everdatabase.sql
+//For linux
+sudo docker exec -it tools4ever_database_container mysql -u root -proot tools4ever_db
+//For Windows
+docker exec -it tools4ever_database_container mysql -u root -proot tools4ever_db
+//linux
+sudo docker-compose up -d
+//Windows
+docker-compose up -d
