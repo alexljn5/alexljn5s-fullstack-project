@@ -25,15 +25,19 @@
 
     <div class="input-container">
         <div class="welcome-box">
-            <p>Welcome [Insert User Here Later]!</p>
+            <p>Welcome to the Tools4Ever Employee Portal!</p>
         </div>
+        <form action="login.php" method="POST">
+            <div class="input-boxes">
+                <label>Username/Email:</label>
+                <input type="text" name="username" placeholder="Username/Email" required>
 
-        <div class="input-boxes">
-            Username/Email:
-            <input type="text" placeholder="Username/Email">
-            Password:
-            <input type="text" placeholder="Password">
-        </div>
+                <label>Password:</label>
+                <input type="password" name="password" placeholder="Password" required>
+
+                <button type="submit">Login</button>
+            </div>
+        </form>
     </div>
 
     <div class="footer-container">
