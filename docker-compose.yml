@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  mysql-db:
+    image: mysql:9.4.0
+    container_name: tools4ever_database_container
+    restart: no
+    environment:
+      MYSQL_ROOT_PASSWORD: root  # Secure this
+      MYSQL_DATABASE: tools4ever_db
+      MYSQL_USER: alexljn5
+      MYSQL_PASSWORD: password  # Secure this
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./src/databases:/docker-entrypoint-initdb.d
+
+  php-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: project-php
+    restart: no
+    depends_on:
+      - mysql-db
+    ports:
+      - "8080:80"
+    volumes:
+      - ./src:/var/www/html
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql-db
+      - DB_PORT=3306
+      - DB_DATABASE=tools4ever_db
+      - DB_USERNAME=alexljn5
+      - DB_PASSWORD=password
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: project-phpmyadmin
+    restart: no
+    depends_on:
+      - mysql-db
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mysql-db
+      PMA_USER: alexljn5
+      PMA_PASSWORD: password
+
+volumes:
+  mysql-data:

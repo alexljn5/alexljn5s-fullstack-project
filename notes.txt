@@ -1,0 +1,1 @@
+sudo docker exec -i tools4ever_database_container mysql -u root -ppassword tools4ever_database_container < tools4everdatabase.sql
