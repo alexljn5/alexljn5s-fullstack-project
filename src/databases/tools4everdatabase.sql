@@ -106,6 +106,10 @@ CREATE TABLE IF NOT EXISTS `tools4ever_db`.`orders_has_products` (
     ON UPDATE NO ACTION
 ) ENGINE = InnoDB;
 
+-- Add amount_in_stock column to existing products table (if not already present)
+ALTER TABLE `tools4ever_db`.`products`
+ADD COLUMN `amount_in_stock` INT NULL AFTER `price`;
+
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;

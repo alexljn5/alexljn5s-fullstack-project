@@ -18,12 +18,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
     $type = $_POST['type'];
     $manufacturer = $_POST['manufacturer'];
     $price = $_POST['price'];
+    $amount_in_stock = $_POST['amount_in_stock'];
 
     // Basic validation
-    if (!empty($productid) && !empty($type) && !empty($manufacturer) && !empty($price)) {
-        $sql = "INSERT INTO products (productid, type, manufacturer, price) VALUES (?, ?, ?, ?)";
+    if (!empty($productid) && !empty($type) && !empty($manufacturer) && !empty($price) && is_numeric($amount_in_stock) && $amount_in_stock >= 0) {
+        $sql = "INSERT INTO products (productid, type, manufacturer, price, amount_in_stock) VALUES (?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssss", $productid, $type, $manufacturer, $price);
+        $stmt->bind_param("ssssi", $productid, $type, $manufacturer, $price, $amount_in_stock);
 
         if ($stmt->execute()) {
             // Redirect to avoid form resubmission
@@ -34,12 +35,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
         }
         $stmt->close();
     } else {
-        echo "<p style='color: red;'>All fields are required!</p>";
+        echo "<p style='color: red;'>All fields are required, and stock must be a non-negative number!</p>";
     }
 }
 
 // Query to fetch all products
-$sql = "SELECT productid, type, manufacturer, price FROM products";
+$sql = "SELECT productid, type, manufacturer, price, amount_in_stock FROM products";
 $result = $conn->query($sql);
 
 // Store products in an array
@@ -60,8 +61,9 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tools4Ever Dashboard!</title>
+    <title>Tools4Ever Dashboard</title>
     <link href="styles.css" rel="stylesheet">
+    <script src="javascript/headerui.js"></script>
     <script src="javascript/dashboard.js"></script>
     <script src="javascript/searchbar.js"></script>
 </head>
@@ -72,6 +74,12 @@ $conn->close();
             <div class="logo-box">
                 <img src="img/logoplaceholder.webp" alt="Placeholder Logo">
             </div>
+            <div class="date-and-time-box">
+                <p2>Loading date and time...</p2>
+            </div>
+            <div class="weather-box">
+                <p3>Weather</p3>
+            </div>
             <div class="signout-box">
                 <a href="logout.php">Sign out</a>
             </div>
@@ -79,7 +87,7 @@ $conn->close();
     </div>
     <div class="search-bar-container">
         <form method="POST" action="">
-            <input type="text" id="searchbar" placeholder="Search by type or ID">
+            <input type="text" id="searchbar" placeholder="Search by type, ID, or stock">
         </form>
     </div>
     <div class="addproductbutton">
@@ -95,6 +103,8 @@ $conn->close();
                 <input type="text" id="manufacturer" name="manufacturer" required>
                 <label for="price">Price:</label>
                 <input type="text" id="price" name="price" required>
+                <label for="amount_in_stock">Stock:</label>
+                <input type="number" id="amount_in_stock" name="amount_in_stock" min="0" required>
                 <button type="submit">Save Product</button>
                 <button type="button" onclick="toggleForm()">Cancel</button>
             </form>
@@ -111,6 +121,7 @@ $conn->close();
                             <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
                             <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
                             <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
+                            <p><strong>Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?></p>
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -122,13 +133,13 @@ $conn->close();
     <div class="footer-container">
         <footer>
             <div class="business-number-box">
-                <p>Business number</p>
+                <p4>Business number</p4>
             </div>
             <div class="legal-text-box">
-                <p>Legal text</p>
+                <p5>Legal text</p5>
             </div>
             <div class="copyright-box">
-                <p>Copyright</p>
+                <p6>Copyright</p6>
             </div>
         </footer>
     </div>
