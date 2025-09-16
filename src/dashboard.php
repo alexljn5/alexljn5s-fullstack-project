@@ -16,14 +16,14 @@ if ($conn->connect_error) {
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
     $productid = $_POST['productid'];
     $type = $_POST['type'];
-    $fabriek = $_POST['fabriek'];
-    $prijs = $_POST['prijs'];
+    $manufacturer = $_POST['manufacturer'];
+    $price = $_POST['price'];
 
     // Basic validation
-    if (!empty($productid) && !empty($type) && !empty($fabriek) && !empty($prijs)) {
-        $sql = "INSERT INTO products (productid, type, fabriek, prijs) VALUES (?, ?, ?, ?)";
+    if (!empty($productid) && !empty($type) && !empty($manufacturer) && !empty($price)) {
+        $sql = "INSERT INTO products (productid, type, manufacturer, price) VALUES (?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssss", $productid, $type, $fabriek, $prijs);
+        $stmt->bind_param("ssss", $productid, $type, $manufacturer, $price);
 
         if ($stmt->execute()) {
             // Redirect to avoid form resubmission
@@ -39,7 +39,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
 }
 
 // Query to fetch all products
-$sql = "SELECT productid, type, fabriek, prijs FROM products";
+$sql = "SELECT productid, type, manufacturer, price FROM products";
 $result = $conn->query($sql);
 
 // Store products in an array
@@ -91,10 +91,10 @@ $conn->close();
                 <input type="text" id="productid" name="productid" required>
                 <label for="type">Type:</label>
                 <input type="text" id="type" name="type" required>
-                <label for="fabriek">Manufacturer:</label>
-                <input type="text" id="fabriek" name="fabriek" required>
-                <label for="prijs">Price:</label>
-                <input type="text" id="prijs" name="prijs" required>
+                <label for="manufacturer">Manufacturer:</label>
+                <input type="text" id="manufacturer" name="manufacturer" required>
+                <label for="price">Price:</label>
+                <input type="text" id="price" name="price" required>
                 <button type="submit">Save Product</button>
                 <button type="button" onclick="toggleForm()">Cancel</button>
             </form>
@@ -109,8 +109,8 @@ $conn->close();
                         <div class="product-card">
                             <h3><?php echo htmlspecialchars($product['type']); ?></h3>
                             <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
-                            <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['fabriek']); ?></p>
-                            <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['prijs']); ?></p>
+                            <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
+                            <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
                         </div>
                     <?php endforeach; ?>
                 </div>
