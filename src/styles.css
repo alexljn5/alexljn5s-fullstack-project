@@ -1,5 +1,7 @@
 body {
     margin: 0;
+    font-family: Arial, sans-serif;
+    /* Added for better readability */
 }
 
 .header-container {
@@ -170,6 +172,156 @@ footer {
     display: block;
 }
 
+.signout-box {
+    margin-left: auto;
+    width: 10vw;
+    height: 4vh;
+    background-color: #fff;
+    border: 0.1rem solid #333;
+    border-radius: 0.4rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.addproductbutton {
+    max-width: 40vw;
+    /* Changed to match input-container for centering */
+    margin: 1rem auto;
+    /* Centered with margin */
+    text-align: left;
+}
+
+.addproductbutton button {
+    background-color: #e3032e;
+    /* Red to match theme */
+    color: white;
+    padding: 0.5rem 1rem;
+    border: 0.1rem solid #333;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.3s;
+    width: auto;
+    /* Allow button to size naturally */
+}
+
+.addproductbutton button:hover {
+    background-color: #c40227;
+    /* Darker red on hover */
+}
+
+/* Styles for the hidden form - stacked vertically */
+.add-product-form {
+    max-width: 40vw;
+    margin: 1rem auto;
+    background-color: #fff;
+    padding: 1rem;
+    border: 0.3rem solid #333;
+    border-radius: 0.8rem;
+    box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.2);
+    display: block;
+    /* Ensure it's block-level */
+}
+
+.add-product-form label {
+    display: block;
+    /* Stack labels under each other */
+    margin: 0.5rem 0 0.2rem;
+    color: #333;
+    font-weight: bold;
+    width: 100%;
+    text-align: left;
+}
+
+.add-product-form input {
+    display: block;
+    /* Stack inputs under labels */
+    width: 100%;
+    /* Full width for stacking */
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    border: 0.1rem solid #ccc;
+    border-radius: 0.4rem;
+    margin-bottom: 0.5rem;
+    box-sizing: border-box;
+    /* Include padding in width */
+}
+
+.add-product-form button {
+    background-color: #e3032e;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: 0.1rem solid #333;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    margin-right: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.add-product-form button[type="button"] {
+    background-color: #ccc;
+}
+
+.add-product-form button:hover {
+    background-color: #c40227;
+}
+
+.add-product-form button[type="button"]:hover {
+    background-color: #bbb;
+}
+
+/* Product overview styles */
+.product-overview {
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.product-overview h2 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+    padding: 0.5rem;
+    width: 100%;
+}
+
+.product-card {
+    background-color: #fff;
+    border: 0.1rem solid #333;
+    border-radius: 0.4rem;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.product-card:hover {
+    transform: translateY(-2px);
+}
+
+.product-card h3 {
+    margin: 0 0 0.5rem;
+    color: #e3032e;
+    /* Red to match theme */
+    font-size: 1.2rem;
+}
+
+.product-card p {
+    margin: 0.3rem 0;
+    color: #333;
+}
+
+.product-card p strong {
+    color: #000;
+}
+
+/* Media Query for Responsive Design (enhanced for mobile) */
 @media screen and (max-width: 600px) {
 
     header,
@@ -184,7 +336,8 @@ footer {
     .weather-box,
     .business-number-box,
     .legal-text-box,
-    .copyright-box {
+    .copyright-box,
+    .signout-box {
         margin: 0;
         width: 80%;
         max-width: 200px;
@@ -192,12 +345,66 @@ footer {
     }
 
     .input-container {
-        max-width: 80vw;
+        max-width: 90vw;
+        /* Increased for mobile */
         padding: 1rem;
+        margin-top: 6vh;
+        /* Adjust for fixed header */
+        margin-bottom: 6vh;
+        /* Adjust for fixed footer */
+        min-height: auto;
+        /* Allow natural height */
     }
 
     .input-boxes input {
-        width: 60vw;
+        width: 90vw;
+        /* Full width on mobile */
         max-width: 250px;
+    }
+
+    .addproductbutton {
+        max-width: 90vw;
+        margin: 0.5rem auto;
+    }
+
+    .addproductbutton button {
+        width: 100%;
+        /* Full width button on mobile for easy tapping */
+        padding: 0.75rem;
+        /* Larger padding for touch */
+    }
+
+    .add-product-form {
+        max-width: 90vw;
+        padding: 1rem;
+        margin: 0.5rem auto;
+    }
+
+    .add-product-form input {
+        width: 100%;
+        font-size: 1rem;
+        /* Larger font for mobile */
+    }
+
+    .add-product-form button {
+        width: 48%;
+        /* Side-by-side buttons on mobile, but stacked if needed */
+        margin: 0.25rem;
+    }
+
+    .product-grid {
+        grid-template-columns: 1fr;
+        /* Single column on mobile */
+        gap: 0.5rem;
+    }
+
+    .product-card {
+        padding: 0.75rem;
+        /* Adjust padding for smaller screens */
+    }
+
+    .product-overview h2 {
+        font-size: 1.1rem;
+        /* Smaller heading on mobile */
     }
 }
