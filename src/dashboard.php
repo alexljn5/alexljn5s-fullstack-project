@@ -1,5 +1,4 @@
 <?php
-// dashboard.php
 $servername = "mysql-db";
 $username = "alexljn5";
 $password = "password";
@@ -64,6 +63,7 @@ $conn->close();
     <title>Tools4Ever Dashboard!</title>
     <link href="styles.css" rel="stylesheet">
     <script src="javascript/dashboard.js"></script>
+    <script src="javascript/searchbar.js"></script>
 </head>
 
 <body>
@@ -73,11 +73,15 @@ $conn->close();
                 <img src="img/logoplaceholder.webp" alt="Placeholder Logo">
             </div>
             <div class="signout-box">
-                <p>Sign out.</p>
+                <a href="logout.php">Sign out</a>
             </div>
         </header>
     </div>
-    <p>hi</p>
+    <div class="search-bar-container">
+        <form method="POST" action="">
+            <input type="text" id="searchbar" placeholder="Search by type or ID">
+        </form>
+    </div>
     <div class="addproductbutton">
         <button type="button" onclick="toggleForm()">Add Product</button>
         <div class="add-product-form" id="addProductForm" style="display: none;">
@@ -96,11 +100,7 @@ $conn->close();
             </form>
         </div>
     </div>
-
     <div class="input-container">
-        <div class="welcome-box">
-            <p>Welcome to the Tools4Ever Employee Portal!</p>
-        </div>
         <div class="product-overview">
             <h2>Product Overview</h2>
             <?php if (!empty($products)): ?>
@@ -119,27 +119,19 @@ $conn->close();
             <?php endif; ?>
         </div>
     </div>
-
     <div class="footer-container">
         <footer>
             <div class="business-number-box">
-                <p>Business number.</p>
+                <p>Business number</p>
             </div>
             <div class="legal-text-box">
-                <p>Legal text.</p>
+                <p>Legal text</p>
             </div>
             <div class="copyright-box">
-                <p>Copyright.</p>
+                <p>Copyright</p>
             </div>
         </footer>
     </div>
-
-    <script>
-        function toggleForm() {
-            const form = document.getElementById('addProductForm');
-            form.style.display = form.style.display === 'none' ? 'block' : 'none';
-        }
-    </script>
 </body>
 
 </html>
