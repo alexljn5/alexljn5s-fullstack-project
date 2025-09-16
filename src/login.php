@@ -24,7 +24,7 @@ $result = $stmt->get_result();
 
 if ($result->num_rows > 0) {
     // User exists → redirect to test.html
-    header("Location: test.html");
+    header("Location: dashboard.php");
     exit();
 } else {
     // Invalid login → show error
