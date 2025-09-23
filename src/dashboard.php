@@ -1,4 +1,14 @@
 <?php
+// dashboard.php: Product management dashboard with location support
+session_start();
+// Uncomment the following to require login
+/*
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header("Location: index.php?error=" . urlencode("Please log in to access the dashboard"));
+    exit();
+}
+*/
+
 $servername = "mysql-db";
 $username = "alexljn5";
 $password = "password";
@@ -19,11 +29,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
     $manufacturer = $_POST['manufacturer'];
     $price = $_POST['price'];
     $amount_in_stock = $_POST['amount_in_stock'];
-    $city = trim($_POST['city']); // New: Get manually entered city string
+    $city = trim($_POST['city']);
 
-    // Basic validation (added city check)
+    // Basic validation
     if (!empty($productid) && !empty($type) && !empty($manufacturer) && !empty($price) && is_numeric($amount_in_stock) && $amount_in_stock >= 0 && !empty($city)) {
-        // Start transaction for atomicity
         $conn->begin_transaction();
         try {
             // Check if city exists; if not, insert it
@@ -34,14 +43,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
             $check_stmt->execute();
             $check_result = $check_stmt->get_result();
             if ($check_row = $check_result->fetch_assoc()) {
-                $location_id = $check_row['idlocation']; // Use existing
+                $location_id = $check_row['idlocation'];
             } else {
-                // Insert new location (zipcode empty for simplicity)
-                $insert_location_sql = "INSERT INTO location (city, zipcode) VALUES (?, '')";
+                $zipcode = ''; // Empty zipcode as in your script
+                $insert_location_sql = "INSERT INTO location (city, zipcode) VALUES (?, ?)";
                 $insert_location_stmt = $conn->prepare($insert_location_sql);
-                $insert_location_stmt->bind_param("s", $city);
+                $insert_location_stmt->bind_param("ss", $city, $zipcode);
                 $insert_location_stmt->execute();
-                $location_id = $conn->insert_id; // Get new ID
+                $location_id = $conn->insert_id;
                 $insert_location_stmt->close();
             }
             $check_stmt->close();
@@ -53,21 +62,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
             $stmt->execute();
             $stmt->close();
 
-            // Insert into location_has_products (default quantity=amount_in_stock, prices=product price)
+            // Insert into location_has_products
             $sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) VALUES (?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("isidd", $location_id, $productid, $amount_in_stock, $price, $price); // Using price for both for simplicity
+            $stmt->bind_param("isidd", $location_id, $productid, $amount_in_stock, $price, $price);
             $stmt->execute();
             $stmt->close();
 
-            // Commit transaction
             $conn->commit();
-            // Redirect to avoid form resubmission
             header("Location: dashboard.php");
             exit();
         } catch (Exception $e) {
             $conn->rollback();
-            echo "<p style='color: red;'>Error adding product: " . $conn->error . "</p>";
+            echo "<p style='color: red;'>Error adding product: " . htmlspecialchars($conn->error) . "</p>";
         }
     } else {
         echo "<p style='color: red;'>All fields are required, stock must be a non-negative number, and location must be entered!</p>";
@@ -89,38 +96,24 @@ if ($result->num_rows > 0) {
     }
 }
 
-// Close connection
 $conn->close();
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tools4Ever Dashboard</title>
-    <link href="styles.css" rel="stylesheet">
-    <script src="javascript/headerui.js"></script>
-    <script src="javascript/dashboard.js"></script>
-    <script src="javascript/searchbar.js"></script>
+    <link href="../styles.css" rel="stylesheet">
+    <script src="../javascript/dashboard.js"></script>
+    <script src="../javascript/searchbar.js"></script>
+    <script src="../javascript/headerui.js"></script>
 </head>
+
 <body>
-    <div class="header-container">
-        <header>
-            <div class="logo-box">
-                <img src="img/logoplaceholder.webp" alt="Placeholder Logo">
-            </div>
-            <div class="date-and-time-box">
-                <p2>Loading date and time...</p2>
-            </div>
-            <div class="weather-box">
-                <p3>Weather</p3>
-            </div>
-            <div class="signout-box">
-                <a href="logout.php">Sign out</a>
-            </div>
-        </header>
-    </div>
+    <?php include 'php/header.php'; ?>
     <div class="search-bar-container">
         <form method="POST" action="">
             <input type="text" id="searchbar" placeholder="Search by type, ID, stock, or location">
@@ -160,7 +153,8 @@ $conn->close();
                             <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
                             <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
                             <p><strong>Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?></p>
-                            <p><strong>Location:</strong> <?php echo htmlspecialchars($product['city'] ?? 'Not assigned'); ?></p>
+                            <p><strong>Location:</strong> <?php echo htmlspecialchars($product['city'] ?? 'Not assigned'); ?>
+                            </p>
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -169,18 +163,7 @@ $conn->close();
             <?php endif; ?>
         </div>
     </div>
-    <div class="footer-container">
-        <footer>
-            <div class="business-number-box">
-                <p4>Business number</p4>
-            </div>
-            <div class="legal-text-box">
-                <p5>Legal text</p5>
-            </div>
-            <div class="copyright-box">
-                <p6>Copyright</p6>
-            </div>
-        </footer>
-    </div>
+    <?php include 'php/footer.php'; ?>
 </body>
+
 </html>

@@ -9,3 +9,6 @@ docker exec -it tools4ever_database_container mysql -u root -proot tools4ever_db
 sudo docker-compose up -d
 //Windows
 docker-compose up -d
+
+INSERT INTO employees (username, password, admin)
+VALUES ('admin', 'admin', 1);

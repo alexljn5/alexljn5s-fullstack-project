@@ -22,4 +22,3 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
     </header>
 </div>
 <script src="/javascript/headerui.js"></script>
-<link href="../styles.css" rel="stylesheet">
