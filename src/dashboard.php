@@ -102,13 +102,21 @@ if ($result->num_rows > 0) {
 }
 
 // Calculate total stock value for management
-$total_stock_value_sql = "SELECT SUM(p.amount_in_stock * lhp.sale_price) as total_value
-                         FROM products p
-                         LEFT JOIN location_has_products lhp ON p.productid = lhp.products_productid
-                         LEFT JOIN location l ON lhp.location_idlocation = l.idlocation
-                         WHERE l.city IN ('Rotterdam', 'Almere', 'Eindhoven')";
-$total_value_result = $conn->query($total_stock_value_sql);
-$total_stock_value = $total_value_result->fetch_assoc()['total_value'] ?? 0;
+//Rewrite this algo since it is wrong.
+// Calculate total stock value for management
+$total_stock_value_sql = "SELECT SUM(lhp.quantity * p.price) as total_value
+                         FROM location_has_products lhp
+                         INNER JOIN products p ON lhp.products_productid = p.productid
+                         INNER JOIN location l ON lhp.location_idlocation = l.idlocation";
+
+
+$total_stock_value = 0.00;
+if ($result_value = $conn->query($total_stock_value_sql)) {
+    if ($row_value = $result_value->fetch_assoc()) {
+        $total_stock_value = $row_value['total_value'] ?? 0.00;
+    }
+}
+
 
 $conn->close();
 ?>
@@ -156,51 +164,45 @@ $conn->close();
             </form>
         </div>
     </div>
-    <div class="dashboard-container" style="display: flex; gap: 20px; margin: 20px;">
-        <div class="input-container" style="flex: 1;">
-            <div class="stock-value" style="margin-bottom: 20px;">
-                <h3>Total Stock Value (Rotterdam, Almere, Eindhoven)</h3>
-                <p>$<?php echo number_format($total_stock_value, 2); ?></p>
-            </div>
-            <div class="product-overview">
-                <h2>Product Overview</h2>
-                <?php if (!empty($products)): ?>
-                    <div class="product-grid">
-                        <?php foreach ($products as $product): ?>
-                            <div class="product-card">
-                                <h3><?php echo htmlspecialchars($product['type']); ?></h3>
-                                <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
-                                <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
-                                <p><strong>Price:</strong>
-                                    $<?php echo htmlspecialchars($product['sale_price'] ?? $product['price']); ?></p>
-                                <p><strong>Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?>
-                                </p>
-                                <p><strong>Location:</strong>
-                                    <?php echo htmlspecialchars($product['city'] ?? 'Not assigned'); ?></p>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php else: ?>
-                    <p>No products found in the database.</p>
-                <?php endif; ?>
+    <div class="input-container">
+        <div class="stock-value" style="margin-bottom: 20px;">
+            <h3>Total Stock Value (Rotterdam, Almere, Eindhoven)</h3>
+            <p>$<?php echo number_format($total_stock_value, 2); ?></p>
+        </div>
+        <div class="product-overview">
+            <h2>Product Overview</h2>
+            <?php if (!empty($products)): ?>
+                <div class="product-grid">
+                    <?php foreach ($products as $product): ?>
+                        <div class="product-card">
+                            <h3><?php echo htmlspecialchars($product['type']); ?></h3>
+                            <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
+                            <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
+                            <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
+                            <p><strong>Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?></p>
+                            <p><strong>Location:</strong> <?php echo htmlspecialchars($product['city'] ?? 'Not assigned'); ?>
+                            </p>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <p>No products found in the database.</p>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php if (!empty($low_stock_warnings)): ?>
+        <div class="sidebar">
+            <div class="warning-box">
+                <h3>Low Stock Alert</h3>
+                <p>The following products are below the minimum stock threshold (<?php echo $min_stock_threshold; ?>):</p>
+                <ul>
+                    <?php foreach ($low_stock_warnings as $warning): ?>
+                        <li><?php echo htmlspecialchars($warning); ?></li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
         </div>
-        <?php if (!empty($low_stock_warnings)): ?>
-            <div class="sidebar" style="flex: 0 0 25%; max-width: 300px;">
-                <div class="warning-box"
-                    style="background-color: #fff3f3; border: 2px solid #ff4d4d; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <h3 style="margin-top: 0; color: #d8000c;">Low Stock Alert</h3>
-                    <p style="margin: 5px 0;">The following products are below the minimum stock threshold
-                        (<?php echo $min_stock_threshold; ?>):</p>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <?php foreach ($low_stock_warnings as $warning): ?>
-                            <li style="color: #d8000c;"><?php echo htmlspecialchars($warning); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            </div>
-        <?php endif; ?>
-    </div>
+    <?php endif; ?>
     <?php include 'php/footer.php'; ?>
 </body>
 
