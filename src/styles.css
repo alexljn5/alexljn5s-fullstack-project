@@ -419,10 +419,13 @@ footer {
     color: #d8000c;
 }
 
+/* Enhanced Media Queries for Better Responsiveness */
+
 @media screen and (max-width: 1024px) {
 
     .input-container,
-    .addproductbutton {
+    .addproductbutton,
+    .search-bar-container {
         max-width: 60vw;
     }
 
@@ -435,22 +438,12 @@ footer {
     .product-grid {
         grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
         gap: 0.75rem;
-        width: 100%;
-        min-width: 0;
     }
 
     .addproductbutton {
         padding-left: 0.75rem;
-    }
-
-    .search-bar-container {
-        max-width: 60vw;
-        padding: 0.75rem;
-    }
-
-    .search-bar-container input#searchbar {
-        padding: 0.75rem;
-        font-size: 0.875rem;
+        padding-right: 0;
+        /* Adjust to prevent overflow */
     }
 
     .input-container {
@@ -470,6 +463,33 @@ footer {
         width: 100%;
         max-width: 60vw;
     }
+
+    .logo-box {
+        width: 4vw;
+        height: 4vw;
+    }
+
+    .date-and-time-box {
+        width: 30vw;
+    }
+
+    .weather-box,
+    .business-number-box,
+    .copyright-box {
+        width: 15vw;
+    }
+
+    .legal-text-box {
+        width: 30vw;
+    }
+
+    .input-boxes input {
+        width: 40vw;
+    }
+
+    .signout-box {
+        width: 15vw;
+    }
 }
 
 @media screen and (max-width: 768px) {
@@ -488,14 +508,15 @@ footer {
     .legal-text-box,
     .copyright-box,
     .signout-box {
-        margin: 0;
+        margin: 0 auto;
         width: 80%;
         max-width: 200px;
         height: 4vh;
     }
 
     .input-container,
-    .addproductbutton {
+    .addproductbutton,
+    .search-bar-container {
         max-width: 70vw;
         padding: 1rem;
         gap: 0.75rem;
@@ -516,22 +537,13 @@ footer {
     .product-grid {
         grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
         gap: 0.5rem;
-        width: 100%;
-        min-width: 0;
     }
 
     .addproductbutton {
         padding-left: 1rem;
-    }
-
-    .search-bar-container {
-        max-width: 70vw;
-        padding: 1rem;
-    }
-
-    .search-bar-container input#searchbar {
-        padding: 0.75rem;
-        font-size: 0.875rem;
+        padding-right: 0;
+        justify-content: center;
+        /* Center for smaller screens */
     }
 
     .input-container {
@@ -550,6 +562,12 @@ footer {
         right: auto;
         width: 100%;
         max-width: 70vw;
+    }
+
+    .header-container,
+    .footer-container {
+        height: 10vh;
+        /* Increase height for stacked elements */
     }
 }
 
@@ -570,14 +588,14 @@ footer {
     .product-grid {
         grid-template-columns: 1fr;
         gap: 1rem;
-        width: 100%;
-        min-width: 0;
     }
 
     .addproductbutton {
         max-width: 90vw;
         padding-left: 1.5rem;
+        padding-right: 0;
         margin: 0.5rem auto;
+        justify-content: center;
     }
 
     .add-product-form {
@@ -622,6 +640,25 @@ footer {
         width: 100%;
         max-width: 90vw;
     }
+
+    .logo-box {
+        width: 8vw;
+        height: 8vw;
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    .date-and-time-box,
+    .legal-text-box {
+        width: 60vw;
+    }
+
+    .weather-box,
+    .business-number-box,
+    .copyright-box,
+    .signout-box {
+        width: 40vw;
+    }
 }
 
 @media screen and (max-width: 480px) {
@@ -638,14 +675,20 @@ footer {
         min-height: 25vh;
         padding: 1rem;
         max-height: 60vh;
+        margin-top: 10vh;
+        margin-bottom: 10vh;
     }
 
     .product-card {
         padding: 0.75rem;
+        font-size: 0.85rem;
     }
 
     .addproductbutton {
         padding-left: 1rem;
+        padding-right: 0;
+        padding-top: 1rem;
+        justify-content: center;
     }
 
     .add-product-form {
@@ -668,6 +711,8 @@ footer {
     .dashboard-container {
         flex-direction: column;
         align-items: center;
+        gap: 10px;
+        margin: 10px;
     }
 
     .sidebar {
@@ -676,5 +721,62 @@ footer {
         right: auto;
         width: 100%;
         max-width: 90vw;
+    }
+
+    .warning-box {
+        padding: 10px;
+        font-size: 0.85rem;
+    }
+
+    /* Additional adjustments for very small screens */
+    header,
+    footer {
+        padding: 0.25rem;
+    }
+
+    .product-overview h2 {
+        font-size: 1.1rem;
+    }
+
+    .product-card h3 {
+        font-size: 1rem;
+    }
+}
+
+@media screen and (max-width: 320px) {
+
+    /* Extra query for tiny screens like older mobiles */
+    body {
+        font-size: 0.8rem;
+    }
+
+    .input-container,
+    .search-bar-container,
+    .addproductbutton {
+        max-width: 95vw;
+        padding: 0.5rem;
+    }
+
+    .input-boxes input {
+        width: 90vw;
+    }
+
+    .add-product-form {
+        width: 95vw;
+        left: 0;
+        padding: 0.5rem;
+    }
+
+    .product-grid {
+        gap: 0.5rem;
+    }
+
+    .sidebar {
+        max-width: 95vw;
+    }
+
+    .header-container,
+    .footer-container {
+        height: 8vh;
     }
 }

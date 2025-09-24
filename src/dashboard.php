@@ -166,7 +166,7 @@ $conn->close();
     </div>
     <div class="input-container">
         <div class="stock-value" style="margin-bottom: 20px;">
-            <h3>Total Stock Value (Rotterdam, Almere, Eindhoven)</h3>
+            <h3>Total Stock Value</h3>
             <p>$<?php echo number_format($total_stock_value, 2); ?></p>
         </div>
         <div class="product-overview">

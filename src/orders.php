@@ -214,13 +214,10 @@ $conn->close();
             <div class="low-stock-warning" style="color: red; margin-bottom: 20px;">
                 <h3>Low Stock Warning</h3>
                 <p>Products below minimum stock (<?php echo $min_stock_threshold; ?>):
-                    <?php echo htmlspecialchars(implode(", ", $low_stock_warnings)); ?></p>
+                    <?php echo htmlspecialchars(implode(", ", $low_stock_warnings)); ?>
+                </p>
             </div>
         <?php endif; ?>
-        <div class="stock-value" style="margin-bottom: 20px;">
-            <h3>Total Stock Value (Rotterdam, Almere, Eindhoven)</h3>
-            <p>$<?php echo number_format($total_stock_value, 2); ?></p>
-        </div>
         <div class="product-overview">
             <h2>Order Overview</h2>
             <?php if (!empty($orders)): ?>
