@@ -12,3 +12,7 @@ docker-compose up -d
 
 INSERT INTO employees (username, password, admin)
 VALUES ('admin', 'admin', 1);
+
+
+//username
+INSERT INTO employees (username, password, admin) VALUES ('admin', '$2y$10$8J9K7L3M5N2P4Q6R8S0T9U1V2W3X4Y5Z6A7B8C9D0E1F2G3H4I5J', 0);
