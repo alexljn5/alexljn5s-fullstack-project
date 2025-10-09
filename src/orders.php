@@ -24,7 +24,82 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-// Handle form submission
+// Handle delivery confirmation
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['confirm_delivery'])) {
+    $order_id = $_POST['order_id'];
+    $errors = [];
+    
+    $conn->begin_transaction();
+    try {
+        // Check if order exists and is not yet commenced
+        $check_sql = "SELECT delivery_status FROM orders WHERE idorders = ?";
+        $check_stmt = $conn->prepare($check_sql);
+        $check_stmt->bind_param("i", $order_id);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+        if ($check_row = $check_result->fetch_assoc()) {
+            if ($check_row['delivery_status'] == 1) {
+                throw new Exception("Order #$order_id delivery already commenced.");
+            }
+        } else {
+            throw new Exception("Order #$order_id not found.");
+        }
+        $check_stmt->close();
+
+        // Get order products and quantities
+        $products_sql = "SELECT products_productid, order_quantity 
+                         FROM orders_has_products 
+                         WHERE orders_idorders = ?";
+        $products_stmt = $conn->prepare($products_sql);
+        $products_stmt->bind_param("i", $order_id);
+        $products_stmt->execute();
+        $products_result = $products_stmt->get_result();
+        $order_products = [];
+        while ($row = $products_result->fetch_assoc()) {
+            $order_products[] = $row;
+        }
+        $products_stmt->close();
+
+        // Update stock for each product
+        foreach ($order_products as $product) {
+            $product_id = $product['products_productid'];
+            $quantity = $product['order_quantity'];
+
+            // Update products.amount_in_stock
+            $sql = "UPDATE products SET amount_in_stock = amount_in_stock + ? WHERE productid = ?";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("is", $quantity, $product_id);
+            $stmt->execute();
+            $stmt->close();
+
+            // Update location_has_products.quantity
+            $sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) 
+                    SELECT o.location_idlocation, ?, ?, 0, 0 
+                    FROM orders o WHERE o.idorders = ?
+                    ON DUPLICATE KEY UPDATE quantity = quantity + ?";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("siii", $product_id, $quantity, $order_id, $quantity);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        // Mark order as commenced
+        $sql = "UPDATE orders SET delivery_status = 1 WHERE idorders = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $order_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+        header("Location: orders.php");
+        exit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        $errors[] = "Error confirming delivery: " . htmlspecialchars($e->getMessage());
+    }
+}
+
+// Handle form submission for adding orders
 $errors = [];
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
     error_log("POST data: " . print_r($_POST, true));
@@ -36,7 +111,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
     $quantities = $_POST['quantities'] ?? [];
     $purchase_prices = $_POST['purchase_prices'] ?? [];
     $sale_prices = $_POST['sale_prices'] ?? [];
-    $update_stock = isset($_POST['update_stock']) && $_POST['update_stock'] === '1'; // Optional stock update
+    $update_stock = isset($_POST['update_stock']) && $_POST['update_stock'] === '1';
 
     // Validate inputs
     if (empty($order_date) || empty($city) || empty($products) || empty($quantities) || count($products) != count($quantities) || count($products) != count($purchase_prices) || count($products) != count($sale_prices)) {
@@ -81,7 +156,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
             $total_quantity = array_sum($quantities);
 
             // Insert into orders table
-            $sql = "INSERT INTO orders (order_date, delivery_date, order_notes, order_quantity, location_idlocation) VALUES (?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO orders (order_date, delivery_date, order_notes, order_quantity, location_idlocation, delivery_status) VALUES (?, ?, ?, ?, ?, 0)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("sssii", $order_date, $delivery_date, $order_notes, $total_quantity, $location_id);
             $stmt->execute();
@@ -155,7 +230,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
 // Handle search
 $search_query = $_POST['searchbar'] ?? '';
 $orders = [];
-$sql = "SELECT o.idorders, o.order_date, o.delivery_date, o.order_notes, o.order_quantity, l.city,
+$sql = "SELECT o.idorders, o.order_date, o.delivery_date, o.order_notes, o.order_quantity, o.delivery_status, l.city,
                GROUP_CONCAT(CONCAT(p.type, ' (Qty: ', ohp.order_quantity, ', Purchase: $', lhp.purchase_price, ', Sale: $', lhp.sale_price, ')') SEPARATOR '; ') as products,
                SUM(ohp.order_quantity * lhp.sale_price) as order_value
         FROM orders o
@@ -209,7 +284,6 @@ $conn->close();
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -219,13 +293,11 @@ $conn->close();
     <script src="/javascript/searchbar.js"></script>
     <script src="/javascript/headerui.js"></script>
 </head>
-
 <body>
     <?php include 'php/header.php'; ?>
     <div class="search-bar-container">
         <form method="POST" action="">
-            <input type="text" id="searchbar" name="searchbar" placeholder="Search by order ID, date, or location"
-                value="<?php echo htmlspecialchars($search_query); ?>">
+            <input type="text" id="searchbar" name="searchbar" placeholder="Search by order ID, date, or location" value="<?php echo htmlspecialchars($search_query); ?>">
         </form>
     </div>
     <div class="addproductbutton">
@@ -254,11 +326,11 @@ $conn->close();
                         <select name="products[]" required onchange="updatePriceFields(this)">
                             <option value="">Select Product</option>
                             <?php foreach ($products_list as $product): ?>
-                                    <option value="<?php echo htmlspecialchars($product['productid']); ?>" 
-                                            data-purchase-price="<?php echo htmlspecialchars(number_format($product['purchase_price'], 2)); ?>"
-                                            data-sale-price="<?php echo htmlspecialchars(number_format($product['sale_price'], 2)); ?>">
-                                        <?php echo htmlspecialchars($product['type'] . " (Stock: " . $product['amount_in_stock'] . ")"); ?>
-                                    </option>
+                                <option value="<?php echo htmlspecialchars($product['productid']); ?>" 
+                                        data-purchase-price="<?php echo htmlspecialchars(number_format($product['purchase_price'], 2)); ?>"
+                                        data-sale-price="<?php echo htmlspecialchars(number_format($product['sale_price'], 2)); ?>">
+                                    <?php echo htmlspecialchars($product['type'] . " (Stock: " . $product['amount_in_stock'] . ")"); ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                         <input type="number" name="quantities[]" min="1" placeholder="Quantity" required>
@@ -281,49 +353,57 @@ $conn->close();
         <div class="product-overview">
             <h2>Order Overview</h2>
             <?php if (!empty($orders)): ?>
-                    <div class="product-grid">
-                        <?php foreach ($orders as $order): ?>
-                                <div class="product-card">
-                                    <h3>Order #<?php echo htmlspecialchars($order['idorders']); ?></h3>
-                                    <p><strong>Order Date:</strong> <?php echo htmlspecialchars($order['order_date']); ?></p>
-                                    <p><strong>Delivery Date:</strong> <?php echo htmlspecialchars($order['delivery_date'] ?? 'Not set'); ?></p>
-                                    <p><strong>Notes:</strong> <?php echo htmlspecialchars($order['order_notes'] ?? 'None'); ?></p>
-                                    <p><strong>Total Quantity:</strong> <?php echo htmlspecialchars($order['order_quantity']); ?></p>
-                                    <p><strong>Location:</strong> <?php echo htmlspecialchars($order['city'] ?? 'Not assigned'); ?></p>
-                                    <p><strong>Products:</strong> <?php echo htmlspecialchars($order['products'] ?? 'None'); ?></p>
-                                    <p><strong>Order Value:</strong> $<?php echo number_format($order['order_value'] ?? 0, 2); ?></p>
-                                </div>
-                        <?php endforeach; ?>
-                    </div>
+                <div class="product-grid">
+                    <?php foreach ($orders as $order): ?>
+                        <div class="product-card">
+                            <h3>Order #<?php echo htmlspecialchars($order['idorders']); ?></h3>
+                            <p><strong>Order Date:</strong> <?php echo htmlspecialchars($order['order_date']); ?></p>
+                            <p><strong>Delivery Date:</strong> <?php echo htmlspecialchars($order['delivery_date'] ?? 'Not set'); ?></p>
+                            <p><strong>Notes:</strong> <?php echo htmlspecialchars($order['order_notes'] ?? 'None'); ?></p>
+                            <p><strong>Total Quantity:</strong> <?php echo htmlspecialchars($order['order_quantity']); ?></p>
+                            <p><strong>Location:</strong> <?php echo htmlspecialchars($order['city'] ?? 'Not assigned'); ?></p>
+                            <p><strong>Products:</strong> <?php echo htmlspecialchars($order['products'] ?? 'None'); ?></p>
+                            <p><strong>Order Value:</strong> $<?php echo number_format($order['order_value'] ?? 0, 2); ?></p>
+                            <p><strong>Delivery Status:</strong> <?php echo $order['delivery_status'] ? 'Commenced' : 'Pending'; ?></p>
+                            <?php if (!$order['delivery_status']): ?>
+                                <form method="POST" action="orders.php" onsubmit="return confirmDelivery(<?php echo $order['idorders']; ?>)">
+                                    <input type="hidden" name="confirm_delivery" value="1">
+                                    <input type="hidden" name="order_id" value="<?php echo $order['idorders']; ?>">
+                                    <button type="submit" class="delivery-button">Confirm Delivery</button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php else: ?>
-                    <p>No orders found in the database.</p>
+                <p>No orders found in the database.</p>
             <?php endif; ?>
         </div>
     </div>
     <?php if (!empty($low_stock_warnings) || !empty($errors)): ?>
-            <div class="sidebar">
-                <?php if (!empty($low_stock_warnings)): ?>
-                        <div class="warning-box">
-                            <h3>Low Stock Alert</h3>
-                            <p>The following products are below the minimum stock threshold (<?php echo $min_stock_threshold; ?>):</p>
-                            <ul>
-                                <?php foreach ($low_stock_warnings as $warning): ?>
-                                        <li><?php echo htmlspecialchars($warning); ?></li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                <?php endif; ?>
-                <?php if (!empty($errors)): ?>
-                        <div class="warning-box" style="color: red;">
-                            <h3>Errors</h3>
-                            <ul>
-                                <?php foreach ($errors as $error): ?>
-                                        <li><?php echo htmlspecialchars($error); ?></li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                <?php endif; ?>
-            </div>
+        <div class="sidebar">
+            <?php if (!empty($low_stock_warnings)): ?>
+                <div class="warning-box">
+                    <h3>Low Stock Alert</h3>
+                    <p>The following products are below the minimum stock threshold (<?php echo $min_stock_threshold; ?>):</p>
+                    <ul>
+                        <?php foreach ($low_stock_warnings as $warning): ?>
+                            <li><?php echo htmlspecialchars($warning); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($errors)): ?>
+                <div class="warning-box" style="color: red;">
+                    <h3>Errors</h3>
+                    <ul>
+                        <?php foreach ($errors as $error): ?>
+                            <li><?php echo htmlspecialchars($error); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+        </div>
     <?php endif; ?>
     <?php include 'php/footer.php'; ?>
 </body>
