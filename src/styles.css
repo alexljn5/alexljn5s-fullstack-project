@@ -1,17 +1,21 @@
 body {
     margin: 0;
     font-family: Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
 }
 
 .header-container {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #e3032e;
+    background: linear-gradient(135deg, #e3032e 0%, #c40227 100%);
     height: 5vh;
     width: 100%;
     position: fixed;
     top: 0;
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
 }
 
 header {
@@ -30,6 +34,10 @@ header {
     background-color: #fff;
     border: 0.1rem solid #333;
     border-radius: 0.4rem;
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
 }
 
 .logo-box img {
@@ -47,6 +55,10 @@ header {
     background-color: #fff;
     border: 0.1rem solid #333;
     border-radius: 0.4rem;
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
 }
 
 .weather-box {
@@ -59,6 +71,10 @@ header {
     display: flex;
     justify-content: center;
     align-items: center;
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
 }
 
 .date-and-time-box p2,
@@ -70,11 +86,12 @@ header {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #e3032e;
+    background: linear-gradient(135deg, #e3032e 0%, #c40227 100%);
     height: 5vh;
     width: 100%;
     position: fixed;
     bottom: 0;
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
 }
 
 footer {
@@ -94,6 +111,10 @@ footer {
     display: flex;
     justify-content: center;
     align-items: center;
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
 }
 
 .legal-text-box {
@@ -105,6 +126,10 @@ footer {
     background-color: #fff;
     border: 0.1rem solid #333;
     border-radius: 0.4rem;
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
 }
 
 .copyright-box {
@@ -117,6 +142,10 @@ footer {
     display: flex;
     justify-content: center;
     align-items: center;
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
 }
 
 .business-number-box p4,
@@ -134,8 +163,10 @@ footer {
     margin-bottom: 7vh;
     border: 0.3rem solid #333;
     padding: 0.5rem;
-    background-color: #f9f9f9;
-    box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.2);
+    background: linear-gradient(to right bottom, #ffffff, #f9f9f9);
+    backdrop-filter: blur(8px);
+    border: 0.2rem solid #333;
+    box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.1);
     border-radius: 0.8rem;
     max-width: 40vw;
     margin-left: auto;
@@ -156,6 +187,9 @@ footer {
 
 .welcome-box p {
     margin: 0;
+    font-size: 1.1rem;
+    letter-spacing: -0.01em;
+    font-weight: 500;
 }
 
 .input-boxes {
@@ -173,6 +207,14 @@ footer {
     border-radius: 0.5rem;
     margin: 0 auto;
     display: block;
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.input-boxes input:focus {
+    border-color: #e3032e;
+    box-shadow: 0 0.2rem 0.8rem rgba(227, 3, 46, 0.1);
+    transform: translateY(-1px);
 }
 
 .signout-box {
@@ -221,22 +263,28 @@ footer {
     padding: 1rem;
     text-align: center;
     box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
 }
 
 .product-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-4px);
+    box-shadow: 0 0.6rem 1.2rem rgba(0, 0, 0, 0.15);
 }
 
 .product-card h3 {
     margin: 0 0 0.5rem;
     color: #e3032e;
     font-size: 1.2rem;
+    letter-spacing: -0.01em;
+    font-weight: 600;
 }
 
 .product-card p {
     margin: 0.3rem 0;
     color: #333;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
 }
 
 .product-card p strong {
@@ -259,12 +307,14 @@ footer {
     border-radius: 0.4rem;
     cursor: pointer;
     font-size: 0.875rem;
-    transition: background-color 0.3s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
     margin-top: 0.5rem;
 }
 
 .product-card button:hover:not([disabled]) {
+    transform: scale(1.02);
+    box-shadow: 0 0.3rem 0.6rem rgba(227, 3, 46, 0.2);
     background-color: #c40227;
 }
 
@@ -315,13 +365,18 @@ footer {
     left: 0.5rem;
     width: calc(40vw - 1rem);
     max-width: 400px;
-    background-color: #f9f9f9;
-    padding: 1rem;
-    border: 0.3rem solid #333;
-    border-radius: 0.8rem;
-    box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.2);
+    background: linear-gradient(to right bottom, #ffffff, #f9f9f9);
+    backdrop-filter: blur(8px);
+    border: 0.2rem solid #333;
+    box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.15);
+    transform: translateY(0);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 10;
     display: none;
+}
+
+.add-product-form:hover {
+    transform: translateY(-2px);
 }
 
 .add-product-form label {
@@ -379,8 +434,8 @@ footer {
     max-width: 40vw;
     margin: 6vh auto 0.5rem;
     padding: 0.5rem;
-    background-color: #f9f9f9;
-    border: 0.3rem solid #333;
+    background: linear-gradient(to right bottom, #ffffff, #f9f9f9);
+    border: 0.2rem solid #333;
     border-radius: 0.8rem;
     box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.2);
     box-sizing: border-box;
@@ -402,10 +457,14 @@ footer {
     border: 0.1rem solid #ccc;
     border-radius: 0.5rem;
     box-sizing: border-box;
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
 }
 
 .search-bar-container input#searchbar:focus {
-    outline: 0.2rem solid #e3032e;
+    border-color: #e3032e;
+    box-shadow: 0 0.2rem 0.8rem rgba(227, 3, 46, 0.1);
+    transform: translateY(-1px);
 }
 
 .dashboard-container {
@@ -432,7 +491,15 @@ footer {
     border: 2px solid #ff4d4d;
     border-radius: 8px;
     padding: 15px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0.4rem 1rem rgba(216, 0, 12, 0.1);
+    backdrop-filter: blur(8px);
+    border-radius: 1rem;
+    transition: all 0.3s ease;
+}
+
+.warning-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.6rem 1.2rem rgba(216, 0, 12, 0.15);
 }
 
 .warning-box h3 {
@@ -695,7 +762,9 @@ footer {
     }
 }
 
-@media screen and (max-width: 480px) {
+@media screen and (max-width: 768px) {
+
+    .logo-box,
     body {
         font-size: 0.9rem;
     }
@@ -750,8 +819,6 @@ footer {
     .dashboard-container {
         flex-direction: column;
         align-items: center;
-        gap: 10px;
-        margin: 10px;
     }
 
     .sidebar {
@@ -772,15 +839,16 @@ footer {
     footer {
         padding: 0.25rem;
     }
-
-    .product-overview h2 {
-        font-size: 1.1rem;
-    }
-
-    .product-card h3 {
-        font-size: 1rem;
-    }
 }
+
+.product-overview h2 {
+    font-size: 1.1rem;
+}
+
+.product-card h3 {
+    font-size: 1rem;
+}
+
 
 @media screen and (max-width: 320px) {
 
