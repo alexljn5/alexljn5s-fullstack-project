@@ -243,6 +243,31 @@ footer {
     color: #000;
 }
 
+.product-card button[disabled] {
+    background-color: #ccc !important;
+    cursor: not-allowed;
+    border-color: #999;
+    color: #666;
+    box-shadow: none;
+}
+
+.product-card button {
+    background-color: #e3032e;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: 0.1rem solid #333;
+    border-radius: 0.4rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.3s;
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.product-card button:hover:not([disabled]) {
+    background-color: #c40227;
+}
+
 .addproductbutton {
     display: flex;
     justify-content: flex-start;
@@ -273,6 +298,15 @@ footer {
 
 .addproductbutton button:focus {
     outline: 0.2rem solid #e3032e;
+}
+
+.addproductbutton .back-button {
+    background-color: #666;
+    margin-left: 0.5rem;
+}
+
+.addproductbutton .back-button:hover {
+    background-color: #555;
 }
 
 .add-product-form {
@@ -682,6 +716,11 @@ footer {
     .product-card {
         padding: 0.75rem;
         font-size: 0.85rem;
+    }
+
+    .product-card button {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
     }
 
     .addproductbutton {

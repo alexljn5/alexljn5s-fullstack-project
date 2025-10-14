@@ -82,7 +82,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
     $quantities = $_POST['quantities'] ?? [];
     $purchase_prices = $_POST['purchase_prices'] ?? [];
     $sale_prices = $_POST['sale_prices'] ?? [];
-    $update_stock = isset($_POST['update_stock']) && $_POST['update_stock'] === '1';
 
     if (
         empty($order_date) || empty($city) || empty($products) || count($products) != count($quantities) ||
@@ -127,38 +126,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
                 $purchase_price = $purchase_prices[$i];
                 $sale_price = $sale_prices[$i];
 
-                if ($update_stock) {
-                    $stock_sql = "SELECT amount_in_stock FROM products WHERE productid = ?";
-                    $stock_stmt = $conn->prepare($stock_sql);
-                    $stock_stmt->bind_param("s", $product_id);
-                    $stock_stmt->execute();
-                    $stock_result = $stock_stmt->get_result();
-                    $stock_row = $stock_result->fetch_assoc();
-                    if ($stock_row['amount_in_stock'] < $quantity) {
-                        throw new Exception("Not enough stock for {$product_id}: {$stock_row['amount_in_stock']} available, {$quantity} requested");
-                    }
-                    $stock_stmt->close();
-
-                    $sql = "UPDATE products SET amount_in_stock = amount_in_stock - ? WHERE productid = ?";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bind_param("is", $quantity, $product_id);
-                    $stmt->execute();
-                    $stmt->close();
-
-                    $sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) 
-                            VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity - ?, purchase_price = ?, sale_price = ?";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bind_param("isidddidd", $location_id, $product_id, $quantity, $purchase_price, $sale_price, $quantity, $purchase_price, $sale_price);
-                    $stmt->execute();
-                    $stmt->close();
-                } else {
-                    $sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) 
-                            VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE purchase_price = ?, sale_price = ?";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bind_param("isidddd", $location_id, $product_id, $quantity, $purchase_price, $sale_price, $purchase_price, $sale_price);
-                    $stmt->execute();
-                    $stmt->close();
-                }
+                $sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) 
+                        VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE purchase_price = ?, sale_price = ?";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("isidddd", $location_id, $product_id, $quantity, $purchase_price, $sale_price, $purchase_price, $sale_price);
+                $stmt->execute();
+                $stmt->close();
 
                 $sql = "INSERT INTO orders_has_products (orders_idorders, products_productid, order_quantity) VALUES (?, ?, ?)";
                 $stmt = $conn->prepare($sql);
@@ -179,7 +152,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
 
 // Fetch orders and total value
 $search_query = $_POST['searchbar'] ?? '';
-$sql = "SELECT o.idorders, o.order_date, o.delivery_date, o.order_notes, o.order_quantity, o.delivery_status, l.city,
+$sql = "SELECT o.idorders, o.order_date, o.delivery_date, o.order_notes, o.order_quantity, l.city, o.delivery_status,
         GROUP_CONCAT(CONCAT(p.type, ' (Qty: ', ohp.order_quantity, ', Purchase: $', lhp.purchase_price, ', Sale: $', lhp.sale_price, ')') SEPARATOR '; ') as products,
         SUM(ohp.order_quantity * lhp.sale_price) as order_value
         FROM orders o
@@ -221,11 +194,11 @@ foreach ($orders as $order) {
     $total_order_value += $order['order_value'] ?? 0;
 }
 
-$conn->close();
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -235,16 +208,20 @@ $conn->close();
     <script src="../javascript/searchbar.js"></script>
     <script src="../javascript/headerui.js"></script>
 </head>
+
 <body>
     <?php include 'php/header.php'; ?>
     <div class="search-bar-container">
         <form method="POST" action="">
-            <input type="text" id="searchbar" name="searchbar" placeholder="Search by ID, date, or city" value="<?php echo htmlspecialchars($search_query); ?>">
+            <input type="text" id="searchbar" name="searchbar" placeholder="Search by ID, date, or city"
+                value="<?php echo htmlspecialchars($search_query); ?>">
         </form>
     </div>
     <div class="addproductbutton">
         <button type="button" onclick="toggleForm()">Add Order</button>
         <button type="button" onclick="window.location.href='dashboard.php'">View Products</button>
+        <button type="button" onclick="window.location.href='dashboard.php'" class="back-button">Back to the
+            Dashboard</button>
         <div class="add-product-form" id="addOrderForm" style="display: none;">
             <form method="POST" action="orders.php">
                 <input type="hidden" name="add_order" value="1">
@@ -255,29 +232,40 @@ $conn->close();
                 <label>Order Notes:</label>
                 <textarea name="order_notes" rows="4"></textarea>
                 <label>Location (City):</label>
-                <select name="city" required>
-                    <option value="">Select City</option>
-                    <option value="Rotterdam">Rotterdam</option>
-                    <option value="Almere">Almere</option>
-                    <option value="Eindhoven">Eindhoven</option>
-                </select>
-                <label><input type="checkbox" name="update_stock" value="1"> Update Stock</label>
+                <?php
+                $cities_query = "SELECT DISTINCT city FROM location WHERE city != '' ORDER BY city ASC";
+                $cities_result = $conn->query($cities_query);
+                $cities = [];
+                if ($cities_result->num_rows > 0) {
+                    while ($city_row = $cities_result->fetch_assoc()) {
+                        $cities[] = $city_row['city'];
+                    }
+                }
+                ?>
+                <input type="text" name="city" list="cityList" required placeholder="Select or enter new city">
+                <datalist id="cityList">
+                    <?php foreach ($cities as $city): ?>
+                        <option value="<?php echo htmlspecialchars($city); ?>">
+                        <?php endforeach; ?>
+                </datalist>
                 <label>Products:</label>
                 <div id="product-list">
                     <div class="product-entry">
                         <select name="products[]" required onchange="updatePriceFields(this)">
                             <option value="">Select Product</option>
                             <?php foreach ($products_list as $product): ?>
-                                    <option value="<?php echo htmlspecialchars($product['productid']); ?>" 
-                                            data-purchase-price="<?php echo number_format($product['purchase_price'], 2); ?>"
-                                            data-sale-price="<?php echo number_format($product['sale_price'], 2); ?>">
-                                        <?php echo htmlspecialchars($product['type'] . " (Stock: " . $product['amount_in_stock'] . ")"); ?>
-                                    </option>
+                                <option value="<?php echo htmlspecialchars($product['productid']); ?>"
+                                    data-purchase-price="<?php echo number_format($product['purchase_price'], 2); ?>"
+                                    data-sale-price="<?php echo number_format($product['sale_price'], 2); ?>">
+                                    <?php echo htmlspecialchars($product['type'] . " (Stock: " . $product['amount_in_stock'] . ")"); ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                         <input type="number" name="quantities[]" min="1" placeholder="Quantity" required>
-                        <input type="number" name="purchase_prices[]" step="0.01" min="0.01" placeholder="Purchase Price" required>
-                        <input type="number" name="sale_prices[]" step="0.01" min="0.01" placeholder="Sale Price" required>
+                        <input type="number" name="purchase_prices[]" step="0.01" min="0.01"
+                            placeholder="Purchase Price" required>
+                        <input type="number" name="sale_prices[]" step="0.01" min="0.01" placeholder="Sale Price"
+                            required>
                         <button type="button" onclick="removeProduct(this)">Remove</button>
                     </div>
                 </div>
@@ -288,12 +276,13 @@ $conn->close();
         </div>
     </div>
     <?php if (!empty($errors)): ?>
-            <div class="warning-box" style="color: red;">
-                <h3>Errors</h3>
-                <ul><?php foreach ($errors as $error): ?>
-                        <li><?php echo htmlspecialchars($error); ?></li>
-                <?php endforeach; ?></ul>
-            </div>
+        <div class="warning-box" style="color: red;">
+            <h3>Errors</h3>
+            <ul><?php foreach ($errors as $error): ?>
+                    <li><?php echo htmlspecialchars($error); ?></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
     <?php endif; ?>
     <div class="input-container">
         <div class="stock-value">
@@ -303,44 +292,52 @@ $conn->close();
         <div class="product-overview">
             <h2>Order Overview</h2>
             <?php if ($orders): ?>
-                    <div class="product-grid">
-                        <?php foreach ($orders as $order): ?>
-                                <div class="product-card">
-                                    <h3>Order #<?php echo htmlspecialchars($order['idorders']); ?></h3>
-                                    <p><strong>Date:</strong> <?php echo htmlspecialchars($order['order_date']); ?></p>
-                                    <p><strong>Delivery:</strong> <?php echo htmlspecialchars($order['delivery_date'] ?? 'Not set'); ?></p>
-                                    <p><strong>Notes:</strong> <?php echo htmlspecialchars($order['order_notes'] ?? 'None'); ?></p>
-                                    <p><strong>Quantity:</strong> <?php echo htmlspecialchars($order['order_quantity']); ?></p>
-                                    <p><strong>City:</strong> <?php echo htmlspecialchars($order['city'] ?? 'Not assigned'); ?></p>
-                                    <p><strong>Products:</strong> <?php echo htmlspecialchars($order['products'] ?? 'None'); ?></p>
-                                    <p><strong>Value:</strong> $<?php echo number_format($order['order_value'] ?? 0, 2); ?></p>
-                                    <p><strong>Status:</strong> <?php echo $order['delivery_status'] ? 'Commenced' : 'Pending'; ?></p>
-                                    <?php if (!$order['delivery_status']): ?>
-                                            <form method="POST" action="orders.php" onsubmit="return confirmDelivery(<?php echo $order['idorders']; ?>)">
-                                                <input type="hidden" name="confirm_delivery" value="1">
-                                                <input type="hidden" name="order_id" value="<?php echo $order['idorders']; ?>">
-                                                <button type="submit">Confirm Delivery</button>
-                                            </form>
-                                    <?php endif; ?>
-                                </div>
-                        <?php endforeach; ?>
-                    </div>
+                <div class="product-grid">
+                    <?php foreach ($orders as $order): ?>
+                        <div class="product-card">
+                            <h3>Order #<?php echo htmlspecialchars($order['idorders']); ?></h3>
+                            <p><strong>Date:</strong> <?php echo htmlspecialchars($order['order_date']); ?></p>
+                            <p><strong>Delivery:</strong> <?php echo htmlspecialchars($order['delivery_date'] ?? 'Not set'); ?>
+                            </p>
+                            <p><strong>Notes:</strong> <?php echo htmlspecialchars($order['order_notes'] ?? 'None'); ?></p>
+                            <p><strong>Quantity:</strong> <?php echo htmlspecialchars($order['order_quantity']); ?></p>
+                            <p><strong>City:</strong> <?php echo htmlspecialchars($order['city'] ?? 'Not assigned'); ?></p>
+                            <p><strong>Products:</strong> <?php echo htmlspecialchars($order['products'] ?? 'None'); ?></p>
+                            <p><strong>Value:</strong> $<?php echo number_format($order['order_value'] ?? 0, 2); ?></p>
+                            <p><strong>Status:</strong> <?php echo $order['delivery_status'] == 1 ? 'Delivered' : 'Pending'; ?>
+                            </p>
+                            <?php if ($order['delivery_status'] != 1): ?>
+                                <form method="POST" action="orders.php"
+                                    onsubmit="return confirmDelivery(<?php echo $order['idorders']; ?>)">
+                                    <input type="hidden" name="confirm_delivery" value="1">
+                                    <input type="hidden" name="order_id" value="<?php echo $order['idorders']; ?>">
+                                    <button type="submit">Confirm Delivery</button>
+                                </form>
+                            <?php else: ?>
+                                <button type="button" disabled style="background-color: #ccc;">Delivered</button>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php else: ?>
-                    <p>No orders found.</p>
+                <p>No orders found.</p>
             <?php endif; ?>
         </div>
     </div>
     <?php if ($low_stock_warnings): ?>
-            <div class="sidebar">
-                <div class="warning-box">
-                    <h3>Low Stock Alert</h3>
-                    <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
-                    <ul><?php foreach ($low_stock_warnings as $warning): ?>
-                            <li><?php echo htmlspecialchars($warning); ?></li>
-                    <?php endforeach; ?></ul>
-                </div>
+        <div class="sidebar">
+            <div class="warning-box">
+                <h3>Low Stock Alert</h3>
+                <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
+                <ul><?php foreach ($low_stock_warnings as $warning): ?>
+                        <li><?php echo htmlspecialchars($warning); ?></li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
+        </div>
     <?php endif; ?>
     <?php include 'php/footer.php'; ?>
+    <?php $conn->close(); ?>
 </body>
+
 </html>

@@ -32,37 +32,69 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
     }
 
     if (empty($errors)) {
-        $conn->begin_transaction();
         try {
+            $conn->begin_transaction();
+
+            // Check if product already exists
+            $check_sql = "SELECT productid FROM products WHERE productid = ?";
+            $check_stmt = $conn->prepare($check_sql);
+            $check_stmt->bind_param("s", $productid);
+            $check_stmt->execute();
+            $result = $check_stmt->get_result();
+            if ($result->num_rows > 0) {
+                throw new Exception("Product ID already exists!");
+            }
+            $check_stmt->close();
+
             // Get or insert location
             $zipcode = '';
-            $sql = "INSERT INTO location (city, zipcode) VALUES (?, ?) ON DUPLICATE KEY UPDATE idlocation = LAST_INSERT_ID(idlocation)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ss", $city, $zipcode);
-            $stmt->execute();
-            $location_id = $conn->insert_id;
-            $stmt->close();
+            // First try to get existing location
+            $location_check_sql = "SELECT idlocation FROM location WHERE city = ?";
+            $check_stmt = $conn->prepare($location_check_sql);
+            $check_stmt->bind_param("s", $city);
+            $check_stmt->execute();
+            $location_result = $check_stmt->get_result();
+            $check_stmt->close();
 
-            // Insert product
-            $sql = "INSERT INTO products (productid, type, manufacturer, price, amount_in_stock) VALUES (?, ?, ?, ?, ?)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("sssdi", $productid, $type, $manufacturer, $price, $amount_in_stock);
-            $stmt->execute();
-            $stmt->close();
+            if ($location_result->num_rows > 0) {
+                // Location exists, use its ID
+                $location_row = $location_result->fetch_assoc();
+                $location_id = $location_row['idlocation'];
+            } else {
+                // Location doesn't exist, insert new one
+                $location_sql = "INSERT INTO location (city, zipcode) VALUES (?, ?)";
+                $location_stmt = $conn->prepare($location_sql);
+                $location_stmt->bind_param("ss", $city, $zipcode);
+                $location_stmt->execute();
+                $location_id = $conn->insert_id;
+                $location_stmt->close();
+            }
+
+            // Insert product with explicit type casting
+            $product_sql = "INSERT INTO products (productid, type, manufacturer, price, amount_in_stock) VALUES (?, ?, ?, ?, ?)";
+            $product_stmt = $conn->prepare($product_sql);
+            $price_float = (float) $price;
+            $amount_int = (int) $amount_in_stock;
+            $product_stmt->bind_param("sssdi", $productid, $type, $manufacturer, $price_float, $amount_int);
+            $product_stmt->execute();
+            $product_stmt->close();
 
             // Insert location-product link
-            $sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) VALUES (?, ?, ?, ?, ?)";
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("isidd", $location_id, $productid, $amount_in_stock, $price, $price);
-            $stmt->execute();
-            $stmt->close();
+            $link_sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) VALUES (?, ?, ?, ?, ?)";
+            $link_stmt = $conn->prepare($link_sql);
+            $link_stmt->bind_param("isidd", $location_id, $productid, $amount_int, $price_float, $price_float);
+            $link_stmt->execute();
+            $link_stmt->close();
 
             $conn->commit();
             header("Location: dashboard.php");
             exit();
         } catch (Exception $e) {
             $conn->rollback();
-            $errors[] = "Error adding product. Try again!";
+            $errors[] = "Error adding product: " . $e->getMessage();
+        } catch (mysqli_sql_exception $e) {
+            $conn->rollback();
+            $errors[] = "Database error: " . $e->getMessage();
         }
     }
 }
@@ -87,11 +119,10 @@ if ($result->num_rows > 0) {
             $key = $row['type'] . "_" . $city;
             $low_stock_warnings[$key] = "{$row['type']} (Stock: {$row['amount_in_stock']}, {$city})";
         }
-        $total_stock_value += ($row['quantity'] ?? 0) * ($row['price'] ?? 0);
+        $total_stock_value += ($row['quantity'] ?? 0) * (float) ($row['price'] ?? 0);
     }
 }
 
-$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -131,7 +162,23 @@ $conn->close();
                 <label for="amount_in_stock">Stock:</label>
                 <input type="number" id="amount_in_stock" name="amount_in_stock" min="0" required>
                 <label for="city">Location (City):</label>
-                <input type="text" id="city" name="city" placeholder="Enter city name" required>
+                <?php
+                $cities_query = "SELECT DISTINCT city FROM location WHERE city != ''";
+                $cities_result = $conn->query($cities_query);
+                $cities = [];
+                if ($cities_result->num_rows > 0) {
+                    while ($city_row = $cities_result->fetch_assoc()) {
+                        $cities[] = $city_row['city'];
+                    }
+                }
+                ?>
+                <input type="text" id="city" name="city" list="cityList" required
+                    placeholder="Select or enter new city">
+                <datalist id="cityList">
+                    <?php foreach ($cities as $city): ?>
+                        <option value="<?php echo htmlspecialchars($city); ?>">
+                        <?php endforeach; ?>
+                </datalist>
                 <button type="submit">Save Product</button>
                 <button type="button" onclick="toggleForm()">Cancel</button>
             </form>
@@ -180,6 +227,7 @@ $conn->close();
         </div>
     <?php endif; ?>
     <?php include 'php/footer.php'; ?>
+    <?php $conn->close(); ?>
 </body>
 
 </html>

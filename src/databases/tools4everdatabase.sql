@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS `tools4ever_db`.`location` (
   `idlocation` INT NOT NULL AUTO_INCREMENT COMMENT 'Unique location ID',
   `city` VARCHAR(45) NOT NULL COMMENT 'City name',
   `zipcode` VARCHAR(45) NOT NULL COMMENT 'Postal code',
-  PRIMARY KEY (`idlocation`)
+  PRIMARY KEY (`idlocation`),
+  UNIQUE KEY `uk_city` (`city`)
 ) ENGINE = InnoDB DEFAULT CHARSET=utf8;
 
 -- -----------------------------------------------------
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS `tools4ever_db`.`orders` (
   `order_notes` VARCHAR(255) NULL COMMENT 'Additional notes for the order',
   `order_quantity` INT NOT NULL COMMENT 'Total quantity of items ordered',
   `location_idlocation` INT NOT NULL COMMENT 'References location.idlocation',
+  `delivery_status` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0 for pending, 1 for delivered',
   PRIMARY KEY (`idorders`),
   INDEX `fk_orders_location_idx` (`location_idlocation` ASC),
   CONSTRAINT `fk_orders_location`
