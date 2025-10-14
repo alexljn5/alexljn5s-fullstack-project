@@ -1,66 +1,56 @@
 <?php
-// dashboard.php: Product management dashboard with location support, stock warnings, and value insights
 session_start();
-// Require login for employee-only access
 if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header("Location: index.php?error=" . urlencode("Please log in to access the dashboard"));
+    header("Location: index.php?error=" . urlencode("Please log in"));
     exit();
 }
 
-$servername = "mysql-db";
-$username = "alexljn5";
-$password = "password";
-$dbname = "tools4ever_db";
-
-// Create database connection
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
+$conn = new mysqli("mysql-db", "alexljn5", "password", "tools4ever_db");
 if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+    die("Connection failed");
 }
 
 // Handle form submission
+$errors = [];
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
-    $productid = $_POST['productid'];
-    $type = $_POST['type'];
-    $manufacturer = $_POST['manufacturer'];
-    $price = $_POST['price'];
-    $amount_in_stock = $_POST['amount_in_stock'];
+    $productid = trim($_POST['productid']);
+    $type = trim($_POST['type']);
+    $manufacturer = trim($_POST['manufacturer']);
+    $price = trim($_POST['price']);
+    $amount_in_stock = trim($_POST['amount_in_stock']);
     $city = trim($_POST['city']);
 
-    // Basic validation
-    if (!empty($productid) && !empty($type) && !empty($manufacturer) && !empty($price) && is_numeric($amount_in_stock) && $amount_in_stock >= 0 && !empty($city)) {
+    // Validate inputs
+    if (empty($productid) || empty($type) || empty($manufacturer) || empty($price) || empty($city)) {
+        $errors[] = "All fields are required!";
+    }
+    if (!is_numeric($price) || $price < 0) {
+        $errors[] = "Price must be a non-negative number!";
+    }
+    if (!is_numeric($amount_in_stock) || $amount_in_stock < 0) {
+        $errors[] = "Stock must be a non-negative number!";
+    }
+
+    if (empty($errors)) {
         $conn->begin_transaction();
         try {
-            // Check if city exists; if not, insert it
-            $location_id = null;
-            $check_sql = "SELECT idlocation FROM location WHERE city = ?";
-            $check_stmt = $conn->prepare($check_sql);
-            $check_stmt->bind_param("s", $city);
-            $check_stmt->execute();
-            $check_result = $check_stmt->get_result();
-            if ($check_row = $check_result->fetch_assoc()) {
-                $location_id = $check_row['idlocation'];
-            } else {
-                $zipcode = ''; // Empty zipcode as in your script
-                $insert_location_sql = "INSERT INTO location (city, zipcode) VALUES (?, ?)";
-                $insert_location_stmt = $conn->prepare($insert_location_sql);
-                $insert_location_stmt->bind_param("ss", $city, $zipcode);
-                $insert_location_stmt->execute();
-                $location_id = $conn->insert_id;
-                $insert_location_stmt->close();
-            }
-            $check_stmt->close();
+            // Get or insert location
+            $zipcode = '';
+            $sql = "INSERT INTO location (city, zipcode) VALUES (?, ?) ON DUPLICATE KEY UPDATE idlocation = LAST_INSERT_ID(idlocation)";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ss", $city, $zipcode);
+            $stmt->execute();
+            $location_id = $conn->insert_id;
+            $stmt->close();
 
-            // Insert into products table
+            // Insert product
             $sql = "INSERT INTO products (productid, type, manufacturer, price, amount_in_stock) VALUES (?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ssssi", $productid, $type, $manufacturer, $price, $amount_in_stock);
+            $stmt->bind_param("sssdi", $productid, $type, $manufacturer, $price, $amount_in_stock);
             $stmt->execute();
             $stmt->close();
 
-            // Insert into location_has_products
+            // Insert location-product link
             $sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) VALUES (?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql);
             $stmt->bind_param("isidd", $location_id, $productid, $amount_in_stock, $price, $price);
@@ -72,51 +62,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
             exit();
         } catch (Exception $e) {
             $conn->rollback();
-            echo "<p style='color: red;'>Error adding product: " . htmlspecialchars($conn->error) . "</p>";
+            $errors[] = "Error adding product. Try again!";
         }
-    } else {
-        echo "<p style='color: red;'>All fields are required, stock must be a non-negative number, and location must be entered!</p>";
     }
 }
 
-// Query to fetch all products with location and sale price
-$sql = "SELECT p.productid, p.type, p.manufacturer, p.price, p.amount_in_stock, l.city, lhp.sale_price
+// Fetch products and calculate stock value
+$sql = "SELECT p.productid, p.type, p.manufacturer, p.price, p.amount_in_stock, l.city, lhp.sale_price, lhp.quantity
         FROM products p 
         LEFT JOIN location_has_products lhp ON p.productid = lhp.products_productid 
         LEFT JOIN location l ON lhp.location_idlocation = l.idlocation";
 $result = $conn->query($sql);
 
-// Store products in an array and build low-stock warnings
 $products = [];
 $low_stock_warnings = [];
-$min_stock_threshold = 10; // Assumed from Data Tools for ever.pdf
+$min_stock_threshold = 10;
+$total_stock_value = 0.00;
+
 if ($result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         $products[] = $row;
         if ($row['amount_in_stock'] <= $min_stock_threshold) {
             $city = $row['city'] ?? 'Unknown';
-            $key = $row['type'] . "_" . $city; // Deduplicate by type and city
-            $low_stock_warnings[$key] = $row['type'] . " (Stock: " . $row['amount_in_stock'] . ", " . $city . ")";
+            $key = $row['type'] . "_" . $city;
+            $low_stock_warnings[$key] = "{$row['type']} (Stock: {$row['amount_in_stock']}, {$city})";
         }
+        $total_stock_value += ($row['quantity'] ?? 0) * ($row['price'] ?? 0);
     }
 }
-
-// Calculate total stock value for management
-//Rewrite this algo since it is wrong.
-// Calculate total stock value for management
-$total_stock_value_sql = "SELECT SUM(lhp.quantity * p.price) as total_value
-                         FROM location_has_products lhp
-                         INNER JOIN products p ON lhp.products_productid = p.productid
-                         INNER JOIN location l ON lhp.location_idlocation = l.idlocation";
-
-
-$total_stock_value = 0.00;
-if ($result_value = $conn->query($total_stock_value_sql)) {
-    if ($row_value = $result_value->fetch_assoc()) {
-        $total_stock_value = $row_value['total_value'] ?? 0.00;
-    }
-}
-
 
 $conn->close();
 ?>
@@ -147,7 +120,7 @@ $conn->close();
         <div class="add-product-form" id="addProductForm" style="display: none;">
             <form method="POST" action="dashboard.php">
                 <input type="hidden" name="add_product" value="1">
-                <label for="productid">Product ID:</label>
+                <label for="productid">Product Name:</label>
                 <input type="text" id="productid" name="productid" required>
                 <label for="type">Type:</label>
                 <input type="text" id="type" name="type" required>
@@ -164,8 +137,11 @@ $conn->close();
             </form>
         </div>
     </div>
+    <?php if (!empty($errors)): ?>
+        <p style="color: red;"><?php echo implode("<br>", array_map('htmlspecialchars', $errors)); ?></p>
+    <?php endif; ?>
     <div class="input-container">
-        <div class="stock-value" style="margin-bottom: 20px;">
+        <div class="stock-value">
             <h3>Total Stock Value</h3>
             <p>$<?php echo number_format($total_stock_value, 2); ?></p>
         </div>
@@ -186,7 +162,7 @@ $conn->close();
                     <?php endforeach; ?>
                 </div>
             <?php else: ?>
-                <p>No products found in the database.</p>
+                <p>No products found.</p>
             <?php endif; ?>
         </div>
     </div>
@@ -194,7 +170,7 @@ $conn->close();
         <div class="sidebar">
             <div class="warning-box">
                 <h3>Low Stock Alert</h3>
-                <p>The following products are below the minimum stock threshold (<?php echo $min_stock_threshold; ?>):</p>
+                <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
                 <ul>
                     <?php foreach ($low_stock_warnings as $warning): ?>
                         <li><?php echo htmlspecialchars($warning); ?></li>
