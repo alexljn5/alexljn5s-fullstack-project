@@ -80,8 +80,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['remove_order'])) {
     $order_id = $_POST['order_id'];
     $conn->begin_transaction();
     try {
-        // Verify order exists and is not delivered
-        $check_sql = "SELECT delivery_status FROM orders WHERE idorders = ?";
+        // Verify order exists
+        $check_sql = "SELECT delivery_status, location_idlocation FROM orders WHERE idorders = ?";
         $check_stmt = $conn->prepare($check_sql);
         $check_stmt->bind_param("i", $order_id);
         $check_stmt->execute();
@@ -90,10 +90,46 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['remove_order'])) {
             throw new Exception("Order #$order_id not found");
         }
         $order_row = $check_result->fetch_assoc();
-        if ($order_row['delivery_status'] == 1) {
-            throw new Exception("Cannot delete delivered order #$order_id");
-        }
+        $delivery_status = $order_row['delivery_status'];
+        $location_id = $order_row['location_idlocation'];
         $check_stmt->close();
+
+        // If delivered, reverse stock changes
+        if ($delivery_status == 1) {
+            $products_sql = "SELECT products_productid, order_quantity FROM orders_has_products WHERE orders_idorders = ?";
+            $products_stmt = $conn->prepare($products_sql);
+            $products_stmt->bind_param("i", $order_id);
+            $products_stmt->execute();
+            $products_result = $products_stmt->get_result();
+            $order_products = $products_result->fetch_all(MYSQLI_ASSOC);
+            $products_stmt->close();
+
+            foreach ($order_products as $product) {
+                $product_id = $product['products_productid'];
+                $quantity = $product['order_quantity'];
+                // Decrease stock in products table
+                $sql = "UPDATE products SET amount_in_stock = GREATEST(amount_in_stock - ?, 0) WHERE productid = ?";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("is", $quantity, $product_id);
+                $stmt->execute();
+                $stmt->close();
+
+                // Decrease or remove from location_has_products
+                $sql = "UPDATE location_has_products SET quantity = GREATEST(quantity - ?, 0) 
+                        WHERE location_idlocation = ? AND products_productid = ?";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("iis", $quantity, $location_id, $product_id);
+                $stmt->execute();
+                $stmt->close();
+
+                // Remove if quantity becomes 0
+                $sql = "DELETE FROM location_has_products WHERE location_idlocation = ? AND products_productid = ? AND quantity = 0";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("is", $location_id, $product_id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
 
         // Delete from orders_has_products
         $sql = "DELETE FROM orders_has_products WHERE orders_idorders = ?";
@@ -102,10 +138,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['remove_order'])) {
         $stmt->execute();
         $stmt->close();
 
-        // Delete from location_has_products
-        $sql = "DELETE FROM location_has_products WHERE location_idlocation = (SELECT location_idlocation FROM orders WHERE idorders = ?)";
+        // Delete from location_has_products (for pending orders or cleanup)
+        $sql = "DELETE FROM location_has_products WHERE location_idlocation = ? AND products_productid IN 
+                (SELECT products_productid FROM orders_has_products WHERE orders_idorders = ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("i", $order_id);
+        $stmt->bind_param("ii", $location_id, $order_id);
         $stmt->execute();
         $stmt->close();
 
@@ -469,15 +506,13 @@ $pending_orders = $order_result->num_rows;
                                     <input type="hidden" name="order_id" value="<?php echo $order['idorders']; ?>">
                                     <button type="submit">Confirm Delivery</button>
                                 </form>
-                                <form method="POST" action="orders.php"
-                                    onsubmit="return confirmRemoveOrder(<?php echo $order['idorders']; ?>)">
-                                    <input type="hidden" name="remove_order" value="1">
-                                    <input type="hidden" name="order_id" value="<?php echo $order['idorders']; ?>">
-                                    <button type="submit" style="background-color: #ff4444; color: white;">Remove Order</button>
-                                </form>
-                            <?php else: ?>
-                                <button type="button" disabled style="background-color: #ccc;">Delivered</button>
                             <?php endif; ?>
+                            <form method="POST" action="orders.php"
+                                onsubmit="return confirmRemoveOrder(<?php echo $order['idorders']; ?>, <?php echo $order['delivery_status'] == 1 ? 'true' : 'false'; ?>)">
+                                <input type="hidden" name="remove_order" value="1">
+                                <input type="hidden" name="order_id" value="<?php echo $order['idorders']; ?>">
+                                <button type="submit" style="background-color: #ff4444; color: white;">Remove Order</button>
+                            </form>
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -584,8 +619,11 @@ $pending_orders = $order_result->num_rows;
             return confirm(`Are you sure you want to confirm delivery for order #${orderId}?`);
         }
 
-        function confirmRemoveOrder(orderId) {
-            return confirm(`Are you sure you want to delete order #${orderId}? This action cannot be undone.`);
+        function confirmRemoveOrder(orderId, isDelivered) {
+            const message = isDelivered
+                ? `Are you sure you want to delete order #${orderId}? This will reverse stock changes made during delivery. This action cannot be undone.`
+                : `Are you sure you want to delete order #${orderId}? This action cannot be undone.`;
+            return confirm(message);
         }
     </script>
     <?php $conn->close(); ?>
