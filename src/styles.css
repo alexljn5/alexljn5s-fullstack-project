@@ -50,7 +50,12 @@ header {
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 20vw;
+    width: auto;
+    /* Flexible width */
+    min-width: 200px;
+    /* Minimum to fit date-time */
+    max-width: 300px;
+    /* Prevent over-expansion */
     height: 4vh;
     background-color: #fff;
     border: 0.1rem solid #333;
@@ -59,29 +64,60 @@ header {
     background-color: rgba(255, 255, 255, 0.95);
     box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
+    overflow: hidden;
+    /* Hide overflow */
+}
+
+.date-and-time-box p {
+    margin: 0;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    /* Prevent wrapping */
+    overflow: hidden;
+    /* Hide excess */
+    text-overflow: ellipsis;
+    /* Add ellipsis for overflow */
+    padding: 0 0.5rem;
+    /* Add padding for readability */
 }
 
 .weather-box {
     margin-left: auto;
-    width: 10vw;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: auto;
+    /* Flexible width */
+    min-width: 150px;
+    /* Minimum to fit weather */
+    max-width: 250px;
+    /* Prevent over-expansion */
     height: 4vh;
     background-color: #fff;
     border: 0.1rem solid #333;
     border-radius: 0.4rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     backdrop-filter: blur(8px);
     background-color: rgba(255, 255, 255, 0.95);
     box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
+    overflow: hidden;
+    /* Hide overflow */
 }
 
-.date-and-time-box p2,
-.weather-box p3 {
+.weather-box p {
     margin: 0;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    /* Prevent wrapping */
+    overflow: hidden;
+    /* Hide excess */
+    text-overflow: ellipsis;
+    /* Add ellipsis for overflow */
+    padding: 0 0.5rem;
+    /* Add padding for readability */
 }
 
+/* Rest of your CSS remains unchanged */
 .footer-container {
     display: flex;
     justify-content: center;
@@ -148,9 +184,9 @@ footer {
     transition: all 0.3s ease;
 }
 
-.business-number-box p4,
-.legal-text-box p5,
-.copyright-box p6 {
+.business-number-box p,
+.legal-text-box p,
+.copyright-box p {
     margin: 0;
 }
 
@@ -520,8 +556,7 @@ footer {
     color: #d8000c;
 }
 
-/* Enhanced Media Queries for Better Responsiveness */
-
+/* Media Queries for Responsiveness */
 @media screen and (max-width: 1024px) {
 
     .input-container,
@@ -544,7 +579,6 @@ footer {
     .addproductbutton {
         padding-left: 0.75rem;
         padding-right: 0;
-        /* Adjust to prevent overflow */
     }
 
     .input-container {
@@ -571,10 +605,15 @@ footer {
     }
 
     .date-and-time-box {
-        width: 30vw;
+        min-width: 180px;
+        max-width: 250px;
     }
 
-    .weather-box,
+    .weather-box {
+        min-width: 120px;
+        max-width: 200px;
+    }
+
     .business-number-box,
     .copyright-box {
         width: 15vw;
@@ -615,6 +654,12 @@ footer {
         height: 4vh;
     }
 
+    .date-and-time-box p,
+    .weather-box p {
+        font-size: 0.8rem;
+        /* Smaller font for mobile */
+    }
+
     .input-container,
     .addproductbutton,
     .search-bar-container {
@@ -644,7 +689,6 @@ footer {
         padding-left: 1rem;
         padding-right: 0;
         justify-content: center;
-        /* Center for smaller screens */
     }
 
     .input-container {
@@ -668,7 +712,6 @@ footer {
     .header-container,
     .footer-container {
         height: 10vh;
-        /* Increase height for stacked elements */
     }
 }
 
@@ -752,6 +795,8 @@ footer {
     .date-and-time-box,
     .legal-text-box {
         width: 60vw;
+        min-width: 150px;
+        max-width: 220px;
     }
 
     .weather-box,
@@ -759,100 +804,18 @@ footer {
     .copyright-box,
     .signout-box {
         width: 40vw;
+        min-width: 100px;
+        max-width: 180px;
+    }
+
+    .date-and-time-box p,
+    .weather-box p {
+        font-size: 0.75rem;
+        /* Even smaller for small screens */
     }
 }
-
-@media screen and (max-width: 768px) {
-
-    .logo-box,
-    body {
-        font-size: 0.9rem;
-    }
-
-    .header-container,
-    .footer-container {
-        height: 6vh;
-    }
-
-    .input-container {
-        min-height: 25vh;
-        padding: 1rem;
-        max-height: 60vh;
-        margin-top: 10vh;
-        margin-bottom: 10vh;
-    }
-
-    .product-card {
-        padding: 0.75rem;
-        font-size: 0.85rem;
-    }
-
-    .product-card button {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.8rem;
-    }
-
-    .addproductbutton {
-        padding-left: 1rem;
-        padding-right: 0;
-        padding-top: 1rem;
-        justify-content: center;
-    }
-
-    .add-product-form {
-        width: calc(90vw - 2rem);
-        max-width: 300px;
-        left: 1rem;
-        padding: 1rem;
-    }
-
-    .search-bar-container {
-        max-width: 90vw;
-        padding: 1rem;
-    }
-
-    .search-bar-container input#searchbar {
-        padding: 0.75rem;
-        font-size: 0.9rem;
-    }
-
-    .dashboard-container {
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .sidebar {
-        position: relative;
-        top: auto;
-        right: auto;
-        width: 100%;
-        max-width: 90vw;
-    }
-
-    .warning-box {
-        padding: 10px;
-        font-size: 0.85rem;
-    }
-
-    /* Additional adjustments for very small screens */
-    header,
-    footer {
-        padding: 0.25rem;
-    }
-}
-
-.product-overview h2 {
-    font-size: 1.1rem;
-}
-
-.product-card h3 {
-    font-size: 1rem;
-}
-
 
 @media screen and (max-width: 320px) {
-
-    /* Extra query for tiny screens like older mobiles */
     body {
         font-size: 0.8rem;
     }
@@ -885,5 +848,16 @@ footer {
     .header-container,
     .footer-container {
         height: 8vh;
+    }
+
+    .date-and-time-box,
+    .weather-box {
+        min-width: 120px;
+        max-width: 160px;
+    }
+
+    .date-and-time-box p,
+    .weather-box p {
+        font-size: 0.7rem;
     }
 }
