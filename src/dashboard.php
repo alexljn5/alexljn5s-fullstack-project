@@ -345,7 +345,7 @@ if ($result->num_rows > 0) {
                             }
                         }
                         foreach ($cities as $city): ?>
-                            <option value="<?php echo htmlspecialchars($city); ?>">
+                                <option value="<?php echo htmlspecialchars($city); ?>">
                             <?php endforeach; ?>
                     </datalist>
                 </div>
@@ -367,7 +367,7 @@ if ($result->num_rows > 0) {
                         placeholder="Select or enter new city">
                     <datalist id="cityList">
                         <?php foreach ($cities as $city): ?>
-                            <option value="<?php echo htmlspecialchars($city); ?>">
+                                <option value="<?php echo htmlspecialchars($city); ?>">
                             <?php endforeach; ?>
                     </datalist>
                 </div>
@@ -378,7 +378,7 @@ if ($result->num_rows > 0) {
         </div>
     </div>
     <?php if (!empty($errors)): ?>
-        <p style="color: red;"><?php echo implode("<br>", array_map('htmlspecialchars', $errors)); ?></p>
+            <p style="color: red;"><?php echo implode("<br>", array_map('htmlspecialchars', $errors)); ?></p>
     <?php endif; ?>
     <div class="input-container">
         <div class="stock-value">
@@ -388,55 +388,55 @@ if ($result->num_rows > 0) {
         <div class="product-overview">
             <h2>Product Overview</h2>
             <?php if (!empty($products)): ?>
-                <div class="product-grid">
-                    <?php foreach ($products as $product): ?>
-                        <div class="product-card">
-                            <h3><?php echo htmlspecialchars($product['type']); ?></h3>
-                            <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
-                            <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
-                            <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
-                            <p><strong>Total Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?>
-                            </p>
-                            <p><strong>Locations:</strong>
-                                <?php
-                                $cities = explode(',', $product['cities'] ?? 'Not assigned');
-                                $quantities = explode(',', $product['quantities'] ?? '0');
-                                $location_ids = explode(',', $product['location_ids'] ?? '');
-                                $location_stock = [];
-                                foreach ($cities as $index => $city) {
-                                    $quantity = $quantities[$index] ?? '0';
-                                    $location_id = $location_ids[$index] ?? '';
-                                    $location_stock[] = htmlspecialchars("$city: $quantity") .
-                                        ($location_id ? ' <form method="POST" action="dashboard.php" style="display:inline;" onsubmit="return confirmDeleteStock(\'' . htmlspecialchars($product['productid']) . '\', \'' . $city . '\')">' .
-                                            '<input type="hidden" name="delete_stock" value="1">' .
-                                            '<input type="hidden" name="location_id" value="' . $location_id . '">' .
-                                            '<input type="hidden" name="product_id" value="' . htmlspecialchars($product['productid']) . '">' .
-                                            '<button type="submit" class="confirm-button">Delete Stock</button>' .
-                                            '</form>' : '');
-                                }
-                                echo implode(', ', $location_stock) ?: 'Not assigned';
-                                ?>
-                            </p>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
+                    <div class="product-grid">
+                        <?php foreach ($products as $product): ?>
+                                <div class="product-card">
+                                    <h3><?php echo htmlspecialchars($product['type']); ?></h3>
+                                    <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
+                                    <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
+                                    <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
+                                    <p><strong>Total Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?>
+                                    </p>
+                                    <p><strong>Locations:</strong>
+                                        <?php
+                                        $cities = explode(',', $product['cities'] ?? 'Not assigned');
+                                        $quantities = explode(',', $product['quantities'] ?? '0');
+                                        $location_ids = explode(',', $product['location_ids'] ?? '');
+                                        $location_stock = [];
+                                        foreach ($cities as $index => $city) {
+                                            $quantity = $quantities[$index] ?? '0';
+                                            $location_id = $location_ids[$index] ?? '';
+                                            $location_stock[] = htmlspecialchars("$city: $quantity") .
+                                                ($location_id ? ' <form method="POST" action="dashboard.php" style="display:inline;" onsubmit="return confirmDeleteStock(\'' . htmlspecialchars($product['productid']) . '\', \'' . $city . '\')">' .
+                                                    '<input type="hidden" name="delete_stock" value="1">' .
+                                                    '<input type="hidden" name="location_id" value="' . $location_id . '">' .
+                                                    '<input type="hidden" name="product_id" value="' . htmlspecialchars($product['productid']) . '">' .
+                                                    '<button type="submit" class="confirm-button">Delete Stock</button>' .
+                                                    '</form>' : '');
+                                        }
+                                        echo implode(', ', $location_stock) ?: 'Not assigned';
+                                        ?>
+                                    </p>
+                                </div>
+                        <?php endforeach; ?>
+                    </div>
             <?php else: ?>
-                <p>No products found.</p>
+                    <p>No products found.</p>
             <?php endif; ?>
         </div>
     </div>
     <?php if (!empty($low_stock_warnings)): ?>
-        <div class="sidebar">
-            <div class="warning-box">
-                <h3>Low Stock Alert</h3>
-                <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
-                <ul>
-                    <?php foreach ($low_stock_warnings as $warning): ?>
-                        <li><?php echo htmlspecialchars($warning); ?></li>
-                    <?php endforeach; ?>
-                </ul>
+            <div class="sidebar">
+                <div class="warning-box">
+                    <h3>Low Stock Alert</h3>
+                    <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
+                    <ul>
+                        <?php foreach ($low_stock_warnings as $warning): ?>
+                                <li><?php echo htmlspecialchars($warning); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
             </div>
-        </div>
     <?php endif; ?>
     <?php include 'php/footer.php'; ?>
     <script>
