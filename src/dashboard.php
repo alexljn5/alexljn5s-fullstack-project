@@ -13,97 +13,200 @@ if ($conn->connect_error) {
 // Handle form submission
 $errors = [];
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
-    $productid = trim($_POST['productid']);
-    $type = trim($_POST['type']);
-    $manufacturer = trim($_POST['manufacturer']);
-    $price = trim($_POST['price']);
-    $amount_in_stock = trim($_POST['amount_in_stock']);
-    $city = trim($_POST['city']);
+    $form_mode = $_POST['form_mode'] ?? 'add';
+    $errors = [];
 
-    // Validate inputs
-    if (empty($productid) || empty($type) || empty($manufacturer) || empty($price) || empty($city)) {
-        $errors[] = "All fields are required!";
-    }
-    if (!is_numeric($price) || $price < 0) {
-        $errors[] = "Price must be a non-negative number!";
-    }
-    if (!is_numeric($amount_in_stock) || $amount_in_stock < 0) {
-        $errors[] = "Stock must be a non-negative number!";
-    }
+    if ($form_mode === 'add') {
+        // Logic for adding new product
+        $productid = trim($_POST['productid']);
+        $type = trim($_POST['type']);
+        $manufacturer = trim($_POST['manufacturer']);
+        $price = trim($_POST['price']);
+        $amount_in_stock = trim($_POST['amount_in_stock']);
+        $city = trim(strtolower($_POST['city'])); // Normalize city to lowercase
 
-    if (empty($errors)) {
-        try {
-            $conn->begin_transaction();
+        // Validate inputs
+        if (empty($productid) || empty($type) || empty($manufacturer) || empty($price) || empty($city)) {
+            $errors[] = "All fields are required for adding a new product!";
+        }
+        if (!is_numeric($price) || $price < 0) {
+            $errors[] = "Price must be a non-negative number!";
+        }
+        if (!is_numeric($amount_in_stock) || $amount_in_stock < 0) {
+            $errors[] = "Stock must be a non-negative number!";
+        }
 
-            // Check if product already exists
-            $check_sql = "SELECT productid FROM products WHERE productid = ?";
-            $check_stmt = $conn->prepare($check_sql);
-            $check_stmt->bind_param("s", $productid);
-            $check_stmt->execute();
-            $result = $check_stmt->get_result();
-            if ($result->num_rows > 0) {
-                throw new Exception("Product ID already exists!");
+        if (empty($errors)) {
+            try {
+                $conn->begin_transaction();
+
+                // Check if product already exists
+                $check_sql = "SELECT productid FROM products WHERE productid = ?";
+                $check_stmt = $conn->prepare($check_sql);
+                $check_stmt->bind_param("s", $productid);
+                $check_stmt->execute();
+                $result = $check_stmt->get_result();
+                if ($result->num_rows > 0) {
+                    throw new Exception("Product ID already exists!");
+                }
+                $check_stmt->close();
+
+                // Get or insert location (case-insensitive)
+                $zipcode = '';
+                $location_check_sql = "SELECT idlocation FROM location WHERE LOWER(city) = ?";
+                $check_stmt = $conn->prepare($location_check_sql);
+                $check_stmt->bind_param("s", $city);
+                $check_stmt->execute();
+                $location_result = $check_stmt->get_result();
+                $check_stmt->close();
+
+                if ($location_result->num_rows > 0) {
+                    $location_row = $location_result->fetch_assoc();
+                    $location_id = $location_row['idlocation'];
+                } else {
+                    $location_sql = "INSERT INTO location (city, zipcode) VALUES (?, ?)";
+                    $location_stmt = $conn->prepare($location_sql);
+                    $location_stmt->bind_param("ss", $city, $zipcode);
+                    $location_stmt->execute();
+                    $location_id = $conn->insert_id;
+                    $location_stmt->close();
+                }
+
+                // Insert product with explicit type casting
+                $product_sql = "INSERT INTO products (productid, type, manufacturer, price, amount_in_stock) VALUES (?, ?, ?, ?, ?)";
+                $product_stmt = $conn->prepare($product_sql);
+                $price_float = (float) $price;
+                $amount_int = (int) $amount_in_stock;
+                $product_stmt->bind_param("sssdi", $productid, $type, $manufacturer, $price_float, $amount_int);
+                $product_stmt->execute();
+                $product_stmt->close();
+
+                // Insert location-product link
+                $link_sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) VALUES (?, ?, ?, ?, ?)";
+                $link_stmt = $conn->prepare($link_sql);
+                $link_stmt->bind_param("isidd", $location_id, $productid, $amount_int, $price_float, $price_float);
+                $link_stmt->execute();
+                $link_stmt->close();
+
+                $conn->commit();
+                header("Location: dashboard.php");
+                exit();
+            } catch (Exception $e) {
+                $conn->rollback();
+                $errors[] = "Error adding product: " . $e->getMessage();
+            } catch (mysqli_sql_exception $e) {
+                $conn->rollback();
+                $errors[] = "Database error: " . $e->getMessage();
             }
-            $check_stmt->close();
+        }
+    } else {
+        // Logic for updating stock
+        $existing_productid = trim($_POST['existing_productid']);
+        $additional_stock = trim($_POST['additional_stock']);
+        $city = trim(strtolower($_POST['city_update'])); // Normalize city to lowercase
 
-            // Get or insert location
-            $zipcode = '';
-            // First try to get existing location
-            $location_check_sql = "SELECT idlocation FROM location WHERE city = ?";
-            $check_stmt = $conn->prepare($location_check_sql);
-            $check_stmt->bind_param("s", $city);
-            $check_stmt->execute();
-            $location_result = $check_stmt->get_result();
-            $check_stmt->close();
+        // Validate inputs
+        if (empty($existing_productid) || empty($additional_stock) || empty($city)) {
+            $errors[] = "All fields are required for updating stock!";
+        }
+        if (!is_numeric($additional_stock) || $additional_stock < 0) {
+            $errors[] = "Additional stock must be a non-negative number!";
+        }
 
-            if ($location_result->num_rows > 0) {
-                // Location exists, use its ID
-                $location_row = $location_result->fetch_assoc();
-                $location_id = $location_row['idlocation'];
-            } else {
-                // Location doesn't exist, insert new one
-                $location_sql = "INSERT INTO location (city, zipcode) VALUES (?, ?)";
-                $location_stmt = $conn->prepare($location_sql);
-                $location_stmt->bind_param("ss", $city, $zipcode);
-                $location_stmt->execute();
-                $location_id = $conn->insert_id;
-                $location_stmt->close();
+        if (empty($errors)) {
+            try {
+                $conn->begin_transaction();
+
+                // Check if product exists
+                $check_sql = "SELECT productid, price FROM products WHERE productid = ?";
+                $check_stmt = $conn->prepare($check_sql);
+                $check_stmt->bind_param("s", $existing_productid);
+                $check_stmt->execute();
+                $result = $check_stmt->get_result();
+                if ($result->num_rows == 0) {
+                    throw new Exception("Product does not exist!");
+                }
+                $product_row = $result->fetch_assoc();
+                $price_float = (float) $product_row['price'];
+                $check_stmt->close();
+
+                // Get or insert location (case-insensitive)
+                $zipcode = '';
+                $location_check_sql = "SELECT idlocation FROM location WHERE LOWER(city) = ?";
+                $check_stmt = $conn->prepare($location_check_sql);
+                $check_stmt->bind_param("s", $city);
+                $check_stmt->execute();
+                $location_result = $check_stmt->get_result();
+                $check_stmt->close();
+
+                if ($location_result->num_rows > 0) {
+                    $location_row = $location_result->fetch_assoc();
+                    $location_id = $location_row['idlocation'];
+                } else {
+                    $location_sql = "INSERT INTO location (city, zipcode) VALUES (?, ?)";
+                    $location_stmt = $conn->prepare($location_sql);
+                    $location_stmt->bind_param("ss", $city, $zipcode);
+                    $location_stmt->execute();
+                    $location_id = $conn->insert_id;
+                    $location_stmt->close();
+                }
+
+                // Check if location-product link exists
+                $link_check_sql = "SELECT quantity FROM location_has_products WHERE location_idlocation = ? AND products_productid = ?";
+                $link_check_stmt = $conn->prepare($link_check_sql);
+                $link_check_stmt->bind_param("is", $location_id, $existing_productid);
+                $link_check_stmt->execute();
+                $link_result = $link_check_stmt->get_result();
+                $additional_stock_int = (int) $additional_stock;
+
+                if ($link_result->num_rows > 0) {
+                    // Update existing link
+                    $current_quantity = $link_result->fetch_assoc()['quantity'];
+                    $new_quantity = $current_quantity + $additional_stock_int;
+                    $link_update_sql = "UPDATE location_has_products SET quantity = ? WHERE location_idlocation = ? AND products_productid = ?";
+                    $link_update_stmt = $conn->prepare($link_update_sql);
+                    $link_update_stmt->bind_param("iis", $new_quantity, $location_id, $existing_productid);
+                    $link_update_stmt->execute();
+                    $link_update_stmt->close();
+                } else {
+                    // Insert new location-product link
+                    $link_sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) VALUES (?, ?, ?, ?, ?)";
+                    $link_stmt = $conn->prepare($link_sql);
+                    $link_stmt->bind_param("isidd", $location_id, $existing_productid, $additional_stock_int, $price_float, $price_float);
+                    $link_stmt->execute();
+                    $link_stmt->close();
+                }
+                $link_check_stmt->close();
+
+                // Update total stock in products table
+                $update_stock_sql = "UPDATE products SET amount_in_stock = amount_in_stock + ? WHERE productid = ?";
+                $update_stock_stmt = $conn->prepare($update_stock_sql);
+                $update_stock_stmt->bind_param("is", $additional_stock_int, $existing_productid);
+                $update_stock_stmt->execute();
+                $update_stock_stmt->close();
+
+                $conn->commit();
+                header("Location: dashboard.php");
+                exit();
+            } catch (Exception $e) {
+                $conn->rollback();
+                $errors[] = "Error updating stock: " . $e->getMessage();
+            } catch (mysqli_sql_exception $e) {
+                $conn->rollback();
+                $errors[] = "Database error: " . $e->getMessage();
             }
-
-            // Insert product with explicit type casting
-            $product_sql = "INSERT INTO products (productid, type, manufacturer, price, amount_in_stock) VALUES (?, ?, ?, ?, ?)";
-            $product_stmt = $conn->prepare($product_sql);
-            $price_float = (float) $price;
-            $amount_int = (int) $amount_in_stock;
-            $product_stmt->bind_param("sssdi", $productid, $type, $manufacturer, $price_float, $amount_int);
-            $product_stmt->execute();
-            $product_stmt->close();
-
-            // Insert location-product link
-            $link_sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) VALUES (?, ?, ?, ?, ?)";
-            $link_stmt = $conn->prepare($link_sql);
-            $link_stmt->bind_param("isidd", $location_id, $productid, $amount_int, $price_float, $price_float);
-            $link_stmt->execute();
-            $link_stmt->close();
-
-            $conn->commit();
-            header("Location: dashboard.php");
-            exit();
-        } catch (Exception $e) {
-            $conn->rollback();
-            $errors[] = "Error adding product: " . $e->getMessage();
-        } catch (mysqli_sql_exception $e) {
-            $conn->rollback();
-            $errors[] = "Database error: " . $e->getMessage();
         }
     }
 }
 
 // Fetch products and calculate stock value
-$sql = "SELECT p.productid, p.type, p.manufacturer, p.price, p.amount_in_stock, l.city, lhp.sale_price, lhp.quantity
+$sql = "SELECT p.productid, p.type, p.manufacturer, p.price, p.amount_in_stock, 
+               GROUP_CONCAT(l.city) AS cities, 
+               GROUP_CONCAT(lhp.quantity) AS quantities
         FROM products p 
         LEFT JOIN location_has_products lhp ON p.productid = lhp.products_productid 
-        LEFT JOIN location l ON lhp.location_idlocation = l.idlocation";
+        LEFT JOIN location l ON lhp.location_idlocation = l.idlocation 
+        GROUP BY p.productid, p.type, p.manufacturer, p.price, p.amount_in_stock";
 $result = $conn->query($sql);
 
 $products = [];
@@ -114,12 +217,16 @@ $total_stock_value = 0.00;
 if ($result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         $products[] = $row;
-        if ($row['amount_in_stock'] <= $min_stock_threshold) {
-            $city = $row['city'] ?? 'Unknown';
-            $key = $row['type'] . "_" . $city;
-            $low_stock_warnings[$key] = "{$row['type']} (Stock: {$row['amount_in_stock']}, {$city})";
+        $quantities = explode(',', $row['quantities'] ?? '0');
+        $cities = explode(',', $row['cities'] ?? 'Unknown');
+        foreach ($quantities as $index => $quantity) {
+            if ($quantity <= $min_stock_threshold) {
+                $city = $cities[$index] ?? 'Unknown';
+                $key = $row['type'] . "_" . $city;
+                $low_stock_warnings[$key] = "{$row['type']} (Stock: {$quantity}, {$city})";
+            }
+            $total_stock_value += (float) $quantity * (float) ($row['price'] ?? 0);
         }
-        $total_stock_value += ($row['quantity'] ?? 0) * (float) ($row['price'] ?? 0);
     }
 }
 
@@ -151,35 +258,72 @@ if ($result->num_rows > 0) {
         <div class="add-product-form" id="addProductForm" style="display: none;">
             <form method="POST" action="dashboard.php">
                 <input type="hidden" name="add_product" value="1">
-                <label for="productid">Product Name:</label>
-                <input type="text" id="productid" name="productid" required>
-                <label for="type">Type:</label>
-                <input type="text" id="type" name="type" required>
-                <label for="manufacturer">Manufacturer:</label>
-                <input type="text" id="manufacturer" name="manufacturer" required>
-                <label for="price">Price:</label>
-                <input type="text" id="price" name="price" required>
-                <label for="amount_in_stock">Stock:</label>
-                <input type="number" id="amount_in_stock" name="amount_in_stock" min="0" required>
-                <label for="city">Location (City):</label>
-                <?php
-                $cities_query = "SELECT DISTINCT city FROM location WHERE city != ''";
-                $cities_result = $conn->query($cities_query);
-                $cities = [];
-                if ($cities_result->num_rows > 0) {
-                    while ($city_row = $cities_result->fetch_assoc()) {
-                        $cities[] = $city_row['city'];
-                    }
-                }
-                ?>
-                <input type="text" id="city" name="city" list="cityList" required
-                    placeholder="Select or enter new city">
-                <datalist id="cityList">
-                    <?php foreach ($cities as $city): ?>
-                        <option value="<?php echo htmlspecialchars($city); ?>">
-                        <?php endforeach; ?>
-                </datalist>
-                <button type="submit">Save Product</button>
+                <label for="form_mode">Action:</label>
+                <select id="form_mode" name="form_mode" onchange="toggleFormFields()">
+                    <option value="add">Add New Product</option>
+                    <option value="update">Update Existing Stock</option>
+                </select>
+
+                <!-- Fields for updating stock -->
+                <div id="update_stock_fields" style="display: none;">
+                    <label for="existing_productid">Select Product:</label>
+                    <select id="existing_productid" name="existing_productid">
+                        <option value="">Select a product</option>
+                        <?php
+                        $product_query = "SELECT productid FROM products";
+                        $product_result = $conn->query($product_query);
+                        if ($product_result->num_rows > 0) {
+                            while ($row = $product_result->fetch_assoc()) {
+                                echo '<option value="' . htmlspecialchars($row['productid']) . '">' . htmlspecialchars($row['productid']) . '</option>';
+                            }
+                        }
+                        ?>
+                    </select>
+                    <label for="additional_stock">Additional Stock:</label>
+                    <input type="number" id="additional_stock" name="additional_stock" min="0"
+                        placeholder="Enter additional stock">
+                    <label for="city_update">Location (City):</label>
+                    <input type="text" id="city_update" name="city_update" list="cityList"
+                        placeholder="Select or enter city">
+                    <datalist id="cityList">
+                        <?php
+                        $cities_query = "SELECT DISTINCT city FROM location WHERE city != ''";
+                        $cities_result = $conn->query($cities_query);
+                        $cities = [];
+                        if ($cities_result->num_rows > 0) {
+                            while ($city_row = $cities_result->fetch_assoc()) {
+                                $cities[] = $city_row['city'];
+                            }
+                        }
+                        foreach ($cities as $city): ?>
+                            <option value="<?php echo htmlspecialchars($city); ?>">
+                            <?php endforeach; ?>
+                    </datalist>
+                </div>
+
+                <!-- Fields for adding new product -->
+                <div id="add_product_fields">
+                    <label for="productid">Product Name:</label>
+                    <input type="text" id="productid" name="productid" required>
+                    <label for="type">Type:</label>
+                    <input type="text" id="type" name="type" required>
+                    <label for="manufacturer">Manufacturer:</label>
+                    <input type="text" id="manufacturer" name="manufacturer" required>
+                    <label for="price">Price:</label>
+                    <input type="text" id="price" name="price" required>
+                    <label for="amount_in_stock">Stock:</label>
+                    <input type="number" id="amount_in_stock" name="amount_in_stock" min="0" required>
+                    <label for="city">Location (City):</label>
+                    <input type="text" id="city" name="city" list="cityList" required
+                        placeholder="Select or enter new city">
+                    <datalist id="cityList">
+                        <?php foreach ($cities as $city): ?>
+                            <option value="<?php echo htmlspecialchars($city); ?>">
+                            <?php endforeach; ?>
+                    </datalist>
+                </div>
+
+                <button type="submit">Save</button>
                 <button type="button" onclick="toggleForm()">Cancel</button>
             </form>
         </div>
@@ -199,34 +343,80 @@ if ($result->num_rows > 0) {
                     <?php foreach ($products as $product): ?>
                         <div class="product-card">
                             <h3><?php echo htmlspecialchars($product['type']); ?></h3>
-                            <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
-                            <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
-                            <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
-                            <p><strong>Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?></p>
-                            <p><strong>Location:</strong> <?php echo htmlspecialchars($product['city'] ?? 'Not assigned'); ?>
-                            </p>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
+                                    <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
+                                    <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
+                                    <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
+                                    <p><strong>Total Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?>
+                                    </p>
+                                    <p><strong>Locations:</strong>
+                                        <?php
+                                        $cities = explode(',', $product['cities'] ?? 'Not assigned');
+                                        $quantities = explode(',', $product['quantities'] ?? '0');
+                                        $location_stock = [];
+                                        foreach ($cities as $index => $city) {
+                                            $quantity = $quantities[$index] ?? '0';
+                                            $location_stock[] = htmlspecialchars("$city: $quantity");
+                                        }
+                                        echo implode(', ', $location_stock) ?: 'Not assigned';
+                                        ?>
+                                    </p>
+                                </div>
+                        <?php endforeach; ?>
+                    </div>
             <?php else: ?>
-                <p>No products found.</p>
+                    <p>No products found.</p>
             <?php endif; ?>
         </div>
     </div>
     <?php if (!empty($low_stock_warnings)): ?>
-        <div class="sidebar">
-            <div class="warning-box">
-                <h3>Low Stock Alert</h3>
-                <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
-                <ul>
-                    <?php foreach ($low_stock_warnings as $warning): ?>
-                        <li><?php echo htmlspecialchars($warning); ?></li>
-                    <?php endforeach; ?>
-                </ul>
+            <div class="sidebar">
+                <div class="warning-box">
+                    <h3>Low Stock Alert</h3>
+                    <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
+                    <ul>
+                        <?php foreach ($low_stock_warnings as $warning): ?>
+                                <li><?php echo htmlspecialchars($warning); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
             </div>
-        </div>
     <?php endif; ?>
     <?php include 'php/footer.php'; ?>
+    <script>
+        function toggleFormFields() {
+            const formMode = document.getElementById('form_mode').value;
+            const addFields = document.getElementById('add_product_fields');
+            const updateFields = document.getElementById('update_stock_fields');
+
+            if (formMode === 'add') {
+                addFields.style.display = 'block';
+                updateFields.style.display = 'none';
+                // Set required attributes for add product fields
+                document.getElementById('productid').required = true;
+                document.getElementById('type').required = true;
+                document.getElementById('manufacturer').required = true;
+                document.getElementById('price').required = true;
+                document.getElementById('amount_in_stock').required = true;
+                document.getElementById('city').required = true;
+                document.getElementById('existing_productid').required = false;
+                document.getElementById('additional_stock').required = false;
+                document.getElementById('city_update').required = false;
+            } else {
+                addFields.style.display = 'none';
+                updateFields.style.display = 'block';
+                // Set required attributes for update stock fields
+                document.getElementById('productid').required = false;
+                document.getElementById('type').required = false;
+                document.getElementById('manufacturer').required = false;
+                document.getElementById('price').required = false;
+                document.getElementById('amount_in_stock').required = false;
+                document.getElementById('city').required = false;
+                document.getElementById('existing_productid').required = true;
+                document.getElementById('additional_stock').required = true;
+                document.getElementById('city_update').required = true;
+            }
+        }
+    </script>
     <?php $conn->close(); ?>
 </body>
 
