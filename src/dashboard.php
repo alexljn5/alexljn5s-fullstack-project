@@ -279,6 +279,16 @@ if ($result->num_rows > 0) {
     }
 }
 
+// Fetch cities for datalist
+$cities_query = "SELECT DISTINCT city FROM location WHERE city != ''";
+$cities_result = $conn->query($cities_query);
+$cities = [];
+if ($cities_result->num_rows > 0) {
+    while ($city_row = $cities_result->fetch_assoc()) {
+        $cities[] = $city_row['city'];
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -331,21 +341,20 @@ if ($result->num_rows > 0) {
                     <label for="additional_stock">Additional Stock:</label>
                     <input type="number" id="additional_stock" name="additional_stock" min="0"
                         placeholder="Enter additional stock">
+                    <label for="city_update_select">Select City:</label>
+                    <select id="city_update_select"
+                        onchange="document.getElementById('city_update').value = this.value;">
+                        <option value="">Select a city</option>
+                        <option value="Almere">Almere</option>
+                        <option value="Amsterdam">Amsterdam</option>
+                        <option value="Utrecht">Utrecht</option>
+                    </select>
                     <label for="city_update">Location (City):</label>
                     <input type="text" id="city_update" name="city_update" list="cityList"
                         placeholder="Select or enter city">
                     <datalist id="cityList">
-                        <?php
-                        $cities_query = "SELECT DISTINCT city FROM location WHERE city != ''";
-                        $cities_result = $conn->query($cities_query);
-                        $cities = [];
-                        if ($cities_result->num_rows > 0) {
-                            while ($city_row = $cities_result->fetch_assoc()) {
-                                $cities[] = $city_row['city'];
-                            }
-                        }
-                        foreach ($cities as $city): ?>
-                                <option value="<?php echo htmlspecialchars($city); ?>">
+                        <?php foreach ($cities as $city): ?>
+                            <option value="<?php echo htmlspecialchars($city); ?>">
                             <?php endforeach; ?>
                     </datalist>
                 </div>
@@ -362,12 +371,19 @@ if ($result->num_rows > 0) {
                     <input type="number" step="0.01" min="0" max="99999999.99" id="price" name="price" required>
                     <label for="amount_in_stock">Stock:</label>
                     <input type="number" id="amount_in_stock" name="amount_in_stock" min="0" required>
+                    <label for="city_select">Select City:</label>
+                    <select id="city_select" onchange="document.getElementById('city').value = this.value;">
+                        <option value="">Select a city</option>
+                        <option value="Almere">Almere</option>
+                        <option value="Amsterdam">Amsterdam</option>
+                        <option value="Utrecht">Utrecht</option>
+                    </select>
                     <label for="city">Location (City):</label>
                     <input type="text" id="city" name="city" list="cityList" required
                         placeholder="Select or enter new city">
                     <datalist id="cityList">
                         <?php foreach ($cities as $city): ?>
-                                <option value="<?php echo htmlspecialchars($city); ?>">
+                            <option value="<?php echo htmlspecialchars($city); ?>">
                             <?php endforeach; ?>
                     </datalist>
                 </div>
@@ -378,7 +394,7 @@ if ($result->num_rows > 0) {
         </div>
     </div>
     <?php if (!empty($errors)): ?>
-            <p style="color: red;"><?php echo implode("<br>", array_map('htmlspecialchars', $errors)); ?></p>
+        <p style="color: red;"><?php echo implode("<br>", array_map('htmlspecialchars', $errors)); ?></p>
     <?php endif; ?>
     <div class="input-container">
         <div class="stock-value">
@@ -388,58 +404,63 @@ if ($result->num_rows > 0) {
         <div class="product-overview">
             <h2>Product Overview</h2>
             <?php if (!empty($products)): ?>
-                    <div class="product-grid">
-                        <?php foreach ($products as $product): ?>
-                                <div class="product-card">
-                                    <h3><?php echo htmlspecialchars($product['type']); ?></h3>
-                                    <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
-                                    <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
-                                    <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
-                                    <p><strong>Total Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?>
-                                    </p>
-                                    <p><strong>Locations:</strong>
-                                        <?php
-                                        $cities = explode(',', $product['cities'] ?? 'Not assigned');
-                                        $quantities = explode(',', $product['quantities'] ?? '0');
-                                        $location_ids = explode(',', $product['location_ids'] ?? '');
-                                        $location_stock = [];
-                                        foreach ($cities as $index => $city) {
-                                            $quantity = $quantities[$index] ?? '0';
-                                            $location_id = $location_ids[$index] ?? '';
-                                            $location_stock[] = htmlspecialchars("$city: $quantity") .
-                                                ($location_id ? ' <form method="POST" action="dashboard.php" style="display:inline;" onsubmit="return confirmDeleteStock(\'' . htmlspecialchars($product['productid']) . '\', \'' . $city . '\')">' .
-                                                    '<input type="hidden" name="delete_stock" value="1">' .
-                                                    '<input type="hidden" name="location_id" value="' . $location_id . '">' .
-                                                    '<input type="hidden" name="product_id" value="' . htmlspecialchars($product['productid']) . '">' .
-                                                    '<button type="submit" class="confirm-button">Delete Stock</button>' .
-                                                    '</form>' : '');
-                                        }
-                                        echo implode(', ', $location_stock) ?: 'Not assigned';
-                                        ?>
-                                    </p>
-                                </div>
-                        <?php endforeach; ?>
-                    </div>
+                <div class="product-grid">
+                    <?php foreach ($products as $product): ?>
+                        <div class="product-card">
+                            <h3><?php echo htmlspecialchars($product['type']); ?></h3>
+                            <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
+                            <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
+                            <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
+                            <p><strong>Total Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?>
+                            </p>
+                            <p><strong>Locations:</strong>
+                                <?php
+                                $cities = explode(',', $product['cities'] ?? 'Not assigned');
+                                $quantities = explode(',', $product['quantities'] ?? '0');
+                                $location_ids = explode(',', $product['location_ids'] ?? '');
+                                $location_stock = [];
+                                foreach ($cities as $index => $city) {
+                                    $quantity = $quantities[$index] ?? '0';
+                                    $location_id = $location_ids[$index] ?? '';
+                                    $location_stock[] = htmlspecialchars("$city: $quantity") .
+                                        ($location_id ? ' <form method="POST" action="dashboard.php" style="display:inline;" onsubmit="return confirmDeleteStock(\'' . htmlspecialchars($product['productid']) . '\', \'' . $city . '\')">' .
+                                            '<input type="hidden" name="delete_stock" value="1">' .
+                                            '<input type="hidden" name="location_id" value="' . $location_id . '">' .
+                                            '<input type="hidden" name="product_id" value="' . htmlspecialchars($product['productid']) . '">' .
+                                            '<button type="submit" class="confirm-button">Delete Stock</button>' .
+                                            '</form>' : '');
+                                }
+                                echo implode(', ', $location_stock) ?: 'Not assigned';
+                                ?>
+                            </p>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php else: ?>
-                    <p>No products found.</p>
+                <p>No products found.</p>
             <?php endif; ?>
         </div>
     </div>
     <?php if (!empty($low_stock_warnings)): ?>
-            <div class="sidebar">
-                <div class="warning-box">
-                    <h3>Low Stock Alert</h3>
-                    <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
-                    <ul>
-                        <?php foreach ($low_stock_warnings as $warning): ?>
-                                <li><?php echo htmlspecialchars($warning); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
+        <div class="sidebar">
+            <div class="warning-box">
+                <h3>Low Stock Alert</h3>
+                <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
+                <ul>
+                    <?php foreach ($low_stock_warnings as $warning): ?>
+                        <li><?php echo htmlspecialchars($warning); ?></li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
+        </div>
     <?php endif; ?>
     <?php include 'php/footer.php'; ?>
     <script>
+        function toggleForm() {
+            const form = document.getElementById('addProductForm');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        }
+
         function toggleFormFields() {
             const formMode = document.getElementById('form_mode').value;
             const addFields = document.getElementById('add_product_fields');
