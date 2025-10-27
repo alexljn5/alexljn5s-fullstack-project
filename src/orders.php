@@ -75,6 +75,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['confirm_delivery'])) {
     }
 }
 
+// Handle removing orders
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['remove_order'])) {
+    $order_id = $_POST['order_id'];
+    $conn->begin_transaction();
+    try {
+        // Verify order exists and is not delivered
+        $check_sql = "SELECT delivery_status FROM orders WHERE idorders = ?";
+        $check_stmt = $conn->prepare($check_sql);
+        $check_stmt->bind_param("i", $order_id);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+        if ($check_result->num_rows == 0) {
+            throw new Exception("Order #$order_id not found");
+        }
+        $order_row = $check_result->fetch_assoc();
+        if ($order_row['delivery_status'] == 1) {
+            throw new Exception("Cannot delete delivered order #$order_id");
+        }
+        $check_stmt->close();
+
+        // Delete from orders_has_products
+        $sql = "DELETE FROM orders_has_products WHERE orders_idorders = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $order_id);
+        $stmt->execute();
+        $stmt->close();
+
+        // Delete from location_has_products
+        $sql = "DELETE FROM location_has_products WHERE location_idlocation = (SELECT location_idlocation FROM orders WHERE idorders = ?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $order_id);
+        $stmt->execute();
+        $stmt->close();
+
+        // Delete from orders
+        $sql = "DELETE FROM orders WHERE idorders = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $order_id);
+        $stmt->execute();
+        $stmt->close();
+
+        $conn->commit();
+        header("Location: orders.php");
+        exit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        $errors[] = "Error deleting order: {$e->getMessage()}";
+    }
+}
+
 // Handle adding or updating orders
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
     $form_mode = $_POST['form_mode'] ?? 'add';
@@ -171,7 +221,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
                 $sql = "INSERT INTO location_has_products (location_idlocation, products_productid, quantity, purchase_price, sale_price) 
                         VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE quantity = quantity + ?, purchase_price = ?, sale_price = ?";
                 $stmt = $conn->prepare($sql);
-                $stmt->bind_param("isidddidd", $location_id, $product_id, $quantity, $purchase_price, $sale_price, $quantity, $purchase_price, $sale_price);
+                $stmt->bind_param("isiddidd", $location_id, $product_id, $quantity, $purchase_price, $sale_price, $quantity, $purchase_price, $sale_price);
                 $stmt->execute();
                 $stmt->close();
 
@@ -419,6 +469,12 @@ $pending_orders = $order_result->num_rows;
                                     <input type="hidden" name="order_id" value="<?php echo $order['idorders']; ?>">
                                     <button type="submit">Confirm Delivery</button>
                                 </form>
+                                <form method="POST" action="orders.php"
+                                    onsubmit="return confirmRemoveOrder(<?php echo $order['idorders']; ?>)">
+                                    <input type="hidden" name="remove_order" value="1">
+                                    <input type="hidden" name="order_id" value="<?php echo $order['idorders']; ?>">
+                                    <button type="submit" style="background-color: #ff4444; color: white;">Remove Order</button>
+                                </form>
                             <?php else: ?>
                                 <button type="button" disabled style="background-color: #ccc;">Delivered</button>
                             <?php endif; ?>
@@ -457,13 +513,10 @@ $pending_orders = $order_result->num_rows;
                 updateFields.style.display = 'none';
                 orderFields.style.display = 'block';
                 orderDetailsDiv.style.display = 'none';
-                // Set required attributes for add order fields
                 document.getElementById('existing_order_id').required = false;
                 document.getElementById('order_date').required = true;
                 document.getElementById('city').required = true;
-                // Clear update-specific fields
                 document.getElementById('existing_order_id').value = '';
-                // Reset form fields
                 document.getElementById('order_date').value = '';
                 document.getElementById('delivery_date').value = '';
                 document.getElementById('order_notes').value = '';
@@ -471,11 +524,9 @@ $pending_orders = $order_result->num_rows;
             } else {
                 updateFields.style.display = 'block';
                 orderFields.style.display = 'block';
-                // Set required attributes for update order fields
                 document.getElementById('existing_order_id').required = true;
                 document.getElementById('order_date').required = true;
                 document.getElementById('city').required = true;
-                // Show order details if an order is selected
                 displayOrderDetails();
             }
         }
@@ -504,7 +555,6 @@ $pending_orders = $order_result->num_rows;
                         <p><strong>Status:</strong> ${details.delivery_status}</p>
                     </div>
                 `;
-                // Prefill form fields
                 orderDateInput.value = details.order_date;
                 deliveryDateInput.value = details.delivery_date === 'Not set' ? '' : details.delivery_date;
                 orderNotesInput.value = details.order_notes === 'None' ? '' : details.order_notes;
@@ -512,7 +562,6 @@ $pending_orders = $order_result->num_rows;
             } else {
                 orderDetailsDiv.style.display = 'none';
                 orderDetailsDiv.innerHTML = '';
-                // Reset form fields
                 orderDateInput.value = '';
                 deliveryDateInput.value = '';
                 orderNotesInput.value = '';
@@ -533,6 +582,10 @@ $pending_orders = $order_result->num_rows;
 
         function confirmDelivery(orderId) {
             return confirm(`Are you sure you want to confirm delivery for order #${orderId}?`);
+        }
+
+        function confirmRemoveOrder(orderId) {
+            return confirm(`Are you sure you want to delete order #${orderId}? This action cannot be undone.`);
         }
     </script>
     <?php $conn->close(); ?>
