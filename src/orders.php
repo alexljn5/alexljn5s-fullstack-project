@@ -221,8 +221,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
             } else {
                 // Update existing order
                 $order_id = $existing_order_id;
-                // Verify order exists and is not delivered
-                $check_sql = "SELECT delivery_status, order_quantity FROM orders WHERE idorders = ?";
+                // Verify order exists
+                $check_sql = "SELECT delivery_status, order_quantity, location_idlocation FROM orders WHERE idorders = ?";
                 $check_stmt = $conn->prepare($check_sql);
                 $check_stmt->bind_param("i", $order_id);
                 $check_stmt->execute();
@@ -231,20 +231,75 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_order'])) {
                     throw new Exception("Order #$order_id not found");
                 }
                 $order_row = $check_result->fetch_assoc();
-                if ($order_row['delivery_status'] == 1) {
-                    throw new Exception("Cannot update delivered order #$order_id");
-                }
+                $delivery_status = $order_row['delivery_status'];
                 $current_quantity = $order_row['order_quantity'];
+                $old_location_id = $order_row['location_idlocation'];
                 $check_stmt->close();
 
+                // If delivered, reverse stock changes
+                if ($delivery_status == 1) {
+                    $products_sql = "SELECT products_productid, order_quantity FROM orders_has_products WHERE orders_idorders = ?";
+                    $products_stmt = $conn->prepare($products_sql);
+                    $products_stmt->bind_param("i", $order_id);
+                    $products_stmt->execute();
+                    $products_result = $products_stmt->get_result();
+                    $order_products = $products_result->fetch_all(MYSQLI_ASSOC);
+                    $products_stmt->close();
+
+                    foreach ($order_products as $product) {
+                        $product_id = $product['products_productid'];
+                        $quantity = $product['order_quantity'];
+                        // Decrease stock in products table
+                        $sql = "UPDATE products SET amount_in_stock = GREATEST(amount_in_stock - ?, 0) WHERE productid = ?";
+                        $stmt = $conn->prepare($sql);
+                        $stmt->bind_param("is", $quantity, $product_id);
+                        $stmt->execute();
+                        $stmt->close();
+
+                        // Decrease or remove from location_has_products
+                        $sql = "UPDATE location_has_products SET quantity = GREATEST(quantity - ?, 0) 
+                                WHERE location_idlocation = ? AND products_productid = ?";
+                        $stmt = $conn->prepare($sql);
+                        $stmt->bind_param("iis", $quantity, $old_location_id, $product_id);
+                        $stmt->execute();
+                        $stmt->close();
+
+                        // Remove if quantity becomes 0
+                        $sql = "DELETE FROM location_has_products WHERE location_idlocation = ? AND products_productid = ? AND quantity = 0";
+                        $stmt = $conn->prepare($sql);
+                        $stmt->bind_param("is", $old_location_id, $product_id);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
+
+                // Clear existing products for the order
+                $sql = "DELETE FROM orders_has_products WHERE orders_idorders = ?";
+                $stmt = $conn->prepare($sql);
+                $stmt->bind_param("i", $order_id);
+                $stmt->execute();
+                $stmt->close();
+
                 // Update order details
-                $total_quantity = $current_quantity + array_sum($quantities);
+                $total_quantity = array_sum($quantities);
                 $sql = "UPDATE orders SET order_date = ?, delivery_date = ?, order_notes = ?, order_quantity = ?, location_idlocation = ? 
                         WHERE idorders = ?";
                 $stmt = $conn->prepare($sql);
                 $stmt->bind_param("sssiii", $order_date, $delivery_date, $order_notes, $total_quantity, $location_id, $order_id);
                 $stmt->execute();
                 $stmt->close();
+
+                // If delivered, re-apply stock changes
+                if ($delivery_status == 1) {
+                    foreach ($products as $i => $product_id) {
+                        $quantity = (int) $quantities[$i];
+                        $sql = "UPDATE products SET amount_in_stock = amount_in_stock + ? WHERE productid = ?";
+                        $stmt = $conn->prepare($sql);
+                        $stmt->bind_param("is", $quantity, $product_id);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
             }
 
             // Insert or update products
@@ -350,10 +405,10 @@ if ($cities_result->num_rows > 0) {
     }
 }
 
-// Check if pending orders exist for debugging
-$order_query = "SELECT idorders, COALESCE(l.city, 'Unknown') as city FROM orders o LEFT JOIN location l ON o.location_idlocation = l.idlocation WHERE o.delivery_status = 0";
+// Check if any orders exist for the dropdown
+$order_query = "SELECT idorders, COALESCE(l.city, 'Unknown') as city, delivery_status FROM orders o LEFT JOIN location l ON o.location_idlocation = l.idlocation";
 $order_result = $conn->query($order_query);
-$pending_orders = $order_result->num_rows;
+$all_orders = $order_result->num_rows;
 
 ?>
 
@@ -384,9 +439,9 @@ $pending_orders = $order_result->num_rows;
         <button type="button" onclick="window.location.href='dashboard.php'" class="back-button">Back to the
             Dashboard</button>
         <div class="add-product-form" id="addOrderForm" style="display: none;">
-            <?php if ($pending_orders == 0): ?>
+            <?php if ($all_orders == 0): ?>
                 <div class="warning-box" style="color: red;">
-                    <p>No pending orders available to update. Create a new order or check the orders table.</p>
+                    <p>No orders available to update. Create a new order or check the orders table.</p>
                 </div>
             <?php endif; ?>
             <form method="POST" action="orders.php" onsubmit="return confirmOrderSubmission()">
@@ -394,7 +449,7 @@ $pending_orders = $order_result->num_rows;
                 <label for="form_mode">Action:</label>
                 <select id="form_mode" name="form_mode" onchange="toggleFormFields()">
                     <option value="add">Add New Order</option>
-                    <option value="update" <?php echo $pending_orders == 0 ? 'disabled' : ''; ?>>Update Existing Order
+                    <option value="update" <?php echo $all_orders == 0 ? 'disabled' : ''; ?>>Update Existing Order
                     </option>
                 </select>
 
@@ -405,10 +460,11 @@ $pending_orders = $order_result->num_rows;
                         <option value="">Select an order</option>
                         <?php
                         $order_result->data_seek(0); // Reset result pointer
-                        if ($pending_orders > 0) {
+                        if ($all_orders > 0) {
                             while ($row = $order_result->fetch_assoc()) {
+                                $status = $row['delivery_status'] == 1 ? 'Delivered' : 'Pending';
                                 echo '<option value="' . htmlspecialchars($row['idorders']) . '">' .
-                                    htmlspecialchars('Order #' . $row['idorders'] . ' (' . $row['city'] . ')') . '</option>';
+                                    htmlspecialchars('Order #' . $row['idorders'] . ' (' . $row['city'] . ', ' . $status . ')') . '</option>';
                             }
                         }
                         ?>
@@ -611,7 +667,11 @@ $pending_orders = $order_result->num_rows;
                 return confirm(`Are you sure you want to add this order for ${city}?`);
             } else {
                 const orderId = document.getElementById('existing_order_id').value;
-                return confirm(`Are you sure you want to update order #${orderId} for ${city}?`);
+                const isDelivered = orderDetails[orderId]?.delivery_status === 'Delivered';
+                const message = isDelivered
+                    ? `Are you sure you want to update order #${orderId} for ${city}? This will reverse and re-apply stock changes for this delivered order.`
+                    : `Are you sure you want to update order #${orderId} for ${city}?`;
+                return confirm(message);
             }
         }
 
