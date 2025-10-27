@@ -10,7 +10,55 @@ if ($conn->connect_error) {
     die("Connection failed");
 }
 
-// Handle form submission
+// Handle stock deletion
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete_stock'])) {
+    $product_id = trim($_POST['product_id']);
+    $location_id = $_POST['location_id'];
+    $errors = [];
+
+    try {
+        $conn->begin_transaction();
+
+        // Get current quantity to subtract from products
+        $check_sql = "SELECT quantity FROM location_has_products WHERE location_idlocation = ? AND products_productid = ?";
+        $check_stmt = $conn->prepare($check_sql);
+        $check_stmt->bind_param("is", $location_id, $product_id);
+        $check_stmt->execute();
+        $result = $check_stmt->get_result();
+        if ($result->num_rows == 0) {
+            throw new Exception("Stock entry for product #$product_id at location #$location_id not found");
+        }
+        $row = $result->fetch_assoc();
+        $quantity_to_remove = (int) $row['quantity'];
+        $check_stmt->close();
+
+        // Delete the location-product link
+        $delete_sql = "DELETE FROM location_has_products WHERE location_idlocation = ? AND products_productid = ?";
+        $delete_stmt = $conn->prepare($delete_sql);
+        $delete_stmt->bind_param("is", $location_id, $product_id);
+        $delete_stmt->execute();
+        $delete_stmt->close();
+
+        // Update total stock in products table
+        $update_stock_sql = "UPDATE products SET amount_in_stock = amount_in_stock - ? WHERE productid = ?";
+        $update_stock_stmt = $conn->prepare($update_stock_sql);
+        $update_stock_stmt->bind_param("is", $quantity_to_remove, $product_id);
+        $update_stock_stmt->execute();
+        $update_stock_stmt->close();
+
+        $conn->commit();
+        header("Location: dashboard.php");
+        exit();
+    } catch (Exception $e) {
+        $conn->rollback();
+        $errors[] = "Error deleting stock: " . $e->getMessage();
+    } catch (mysqli_sql_exception $e) {
+        $conn->rollback();
+        $errors[] = "Database error: " . $e->getMessage();
+    }
+}
+
+// Handle form submission for adding/updating products
 $errors = [];
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
     $form_mode = $_POST['form_mode'] ?? 'add';
@@ -29,8 +77,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
         if (empty($productid) || empty($type) || empty($manufacturer) || empty($price) || empty($city)) {
             $errors[] = "All fields are required for adding a new product!";
         }
-        if (!is_numeric($price) || $price < 0) {
-            $errors[] = "Price must be a non-negative number!";
+        if (!is_numeric($price) || $price < 0 || $price > 99999999.99) {
+            $errors[] = "Price must be a non-negative number and not exceed 99999999.99!";
         }
         if (!is_numeric($amount_in_stock) || $amount_in_stock < 0) {
             $errors[] = "Stock must be a non-negative number!";
@@ -75,7 +123,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
                 // Insert product with explicit type casting
                 $product_sql = "INSERT INTO products (productid, type, manufacturer, price, amount_in_stock) VALUES (?, ?, ?, ?, ?)";
                 $product_stmt = $conn->prepare($product_sql);
-                $price_float = (float) $price;
+                $price_float = number_format((float) $price, 2, '.', '');
                 $amount_int = (int) $amount_in_stock;
                 $product_stmt->bind_param("sssdi", $productid, $type, $manufacturer, $price_float, $amount_int);
                 $product_stmt->execute();
@@ -127,7 +175,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
                     throw new Exception("Product does not exist!");
                 }
                 $product_row = $result->fetch_assoc();
-                $price_float = (float) $product_row['price'];
+                $price_float = number_format((float) $product_row['price'], 2, '.', '');
                 $check_stmt->close();
 
                 // Get or insert location (case-insensitive)
@@ -202,7 +250,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['add_product'])) {
 // Fetch products and calculate stock value
 $sql = "SELECT p.productid, p.type, p.manufacturer, p.price, p.amount_in_stock, 
                GROUP_CONCAT(l.city) AS cities, 
-               GROUP_CONCAT(lhp.quantity) AS quantities
+               GROUP_CONCAT(lhp.quantity) AS quantities,
+               GROUP_CONCAT(l.idlocation) AS location_ids
         FROM products p 
         LEFT JOIN location_has_products lhp ON p.productid = lhp.products_productid 
         LEFT JOIN location l ON lhp.location_idlocation = l.idlocation 
@@ -256,7 +305,7 @@ if ($result->num_rows > 0) {
         <button type="button" onclick="toggleForm()">Add Product</button>
         <button type="button" onclick="window.location.href='orders.php'">View Orders</button>
         <div class="add-product-form" id="addProductForm" style="display: none;">
-            <form method="POST" action="dashboard.php">
+            <form method="POST" action="dashboard.php" onsubmit="return confirmFormSubmission()">
                 <input type="hidden" name="add_product" value="1">
                 <label for="form_mode">Action:</label>
                 <select id="form_mode" name="form_mode" onchange="toggleFormFields()">
@@ -310,7 +359,7 @@ if ($result->num_rows > 0) {
                     <label for="manufacturer">Manufacturer:</label>
                     <input type="text" id="manufacturer" name="manufacturer" required>
                     <label for="price">Price:</label>
-                    <input type="text" id="price" name="price" required>
+                    <input type="number" step="0.01" min="0" max="99999999.99" id="price" name="price" required>
                     <label for="amount_in_stock">Stock:</label>
                     <input type="number" id="amount_in_stock" name="amount_in_stock" min="0" required>
                     <label for="city">Location (City):</label>
@@ -343,43 +392,51 @@ if ($result->num_rows > 0) {
                     <?php foreach ($products as $product): ?>
                         <div class="product-card">
                             <h3><?php echo htmlspecialchars($product['type']); ?></h3>
-                                    <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
-                                    <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
-                                    <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
-                                    <p><strong>Total Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?>
-                                    </p>
-                                    <p><strong>Locations:</strong>
-                                        <?php
-                                        $cities = explode(',', $product['cities'] ?? 'Not assigned');
-                                        $quantities = explode(',', $product['quantities'] ?? '0');
-                                        $location_stock = [];
-                                        foreach ($cities as $index => $city) {
-                                            $quantity = $quantities[$index] ?? '0';
-                                            $location_stock[] = htmlspecialchars("$city: $quantity");
-                                        }
-                                        echo implode(', ', $location_stock) ?: 'Not assigned';
-                                        ?>
-                                    </p>
-                                </div>
-                        <?php endforeach; ?>
-                    </div>
+                            <p><strong>ID:</strong> <?php echo htmlspecialchars($product['productid']); ?></p>
+                            <p><strong>Manufacturer:</strong> <?php echo htmlspecialchars($product['manufacturer']); ?></p>
+                            <p><strong>Price:</strong> $<?php echo htmlspecialchars($product['price']); ?></p>
+                            <p><strong>Total Stock:</strong> <?php echo htmlspecialchars($product['amount_in_stock'] ?? '0'); ?>
+                            </p>
+                            <p><strong>Locations:</strong>
+                                <?php
+                                $cities = explode(',', $product['cities'] ?? 'Not assigned');
+                                $quantities = explode(',', $product['quantities'] ?? '0');
+                                $location_ids = explode(',', $product['location_ids'] ?? '');
+                                $location_stock = [];
+                                foreach ($cities as $index => $city) {
+                                    $quantity = $quantities[$index] ?? '0';
+                                    $location_id = $location_ids[$index] ?? '';
+                                    $location_stock[] = htmlspecialchars("$city: $quantity") .
+                                        ($location_id ? ' <form method="POST" action="dashboard.php" style="display:inline;" onsubmit="return confirmDeleteStock(\'' . htmlspecialchars($product['productid']) . '\', \'' . $city . '\')">' .
+                                            '<input type="hidden" name="delete_stock" value="1">' .
+                                            '<input type="hidden" name="location_id" value="' . $location_id . '">' .
+                                            '<input type="hidden" name="product_id" value="' . htmlspecialchars($product['productid']) . '">' .
+                                            '<button type="submit" class="confirm-button">Delete Stock</button>' .
+                                            '</form>' : '');
+                                }
+                                echo implode(', ', $location_stock) ?: 'Not assigned';
+                                ?>
+                            </p>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
             <?php else: ?>
-                    <p>No products found.</p>
+                <p>No products found.</p>
             <?php endif; ?>
         </div>
     </div>
     <?php if (!empty($low_stock_warnings)): ?>
-            <div class="sidebar">
-                <div class="warning-box">
-                    <h3>Low Stock Alert</h3>
-                    <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
-                    <ul>
-                        <?php foreach ($low_stock_warnings as $warning): ?>
-                                <li><?php echo htmlspecialchars($warning); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
+        <div class="sidebar">
+            <div class="warning-box">
+                <h3>Low Stock Alert</h3>
+                <p>Below threshold (<?php echo $min_stock_threshold; ?>):</p>
+                <ul>
+                    <?php foreach ($low_stock_warnings as $warning): ?>
+                        <li><?php echo htmlspecialchars($warning); ?></li>
+                    <?php endforeach; ?>
+                </ul>
             </div>
+        </div>
     <?php endif; ?>
     <?php include 'php/footer.php'; ?>
     <script>
@@ -415,6 +472,22 @@ if ($result->num_rows > 0) {
                 document.getElementById('additional_stock').required = true;
                 document.getElementById('city_update').required = true;
             }
+        }
+
+        function confirmFormSubmission() {
+            const formMode = document.getElementById('form_mode').value;
+            if (formMode === 'add') {
+                const productId = document.getElementById('productid').value;
+                return confirm(`Are you sure you want to add product ${productId}?`);
+            } else {
+                const productId = document.getElementById('existing_productid').value;
+                const city = document.getElementById('city_update').value;
+                return confirm(`Are you sure you want to update stock for product ${productId} in ${city}?`);
+            }
+        }
+
+        function confirmDeleteStock(productId, city) {
+            return confirm(`Are you sure you want to delete stock for product ${productId} at ${city}? This will remove all stock at this location.`);
         }
     </script>
     <?php $conn->close(); ?>
