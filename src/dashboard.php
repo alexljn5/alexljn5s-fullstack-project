@@ -10,9 +10,6 @@ if ($conn->connect_error) {
     die("Connection failed");
 }
 
-// Hardcoded cities
-$hardcoded_cities = ['Almere', 'Amsterdam', 'Utrecht'];
-
 // Handle stock deletion
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['delete_stock'])) {
     $product_id = trim($_POST['product_id']);
@@ -282,16 +279,6 @@ if ($result->num_rows > 0) {
     }
 }
 
-// Fetch cities for datalist
-$cities_query = "SELECT DISTINCT city FROM location WHERE city != ''";
-$cities_result = $conn->query($cities_query);
-$cities = [];
-if ($cities_result->num_rows > 0) {
-    while ($city_row = $cities_result->fetch_assoc()) {
-        $cities[] = $city_row['city'];
-    }
-}
-
 ?>
 
 <!DOCTYPE html>
@@ -344,20 +331,20 @@ if ($cities_result->num_rows > 0) {
                     <label for="additional_stock">Additional Stock:</label>
                     <input type="number" id="additional_stock" name="additional_stock" min="0"
                         placeholder="Enter additional stock">
-                    <label for="city_update_select">Select City:</label>
-                    <select id="city_update_select"
-                        onchange="document.getElementById('city_update').value = this.value;">
-                        <option value="">Select a city</option>
-                        <?php foreach ($hardcoded_cities as $city): ?>
-                            <option value="<?php echo htmlspecialchars($city); ?>"><?php echo htmlspecialchars($city); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
                     <label for="city_update">Location (City):</label>
                     <input type="text" id="city_update" name="city_update" list="cityList"
-                        placeholder="Select or enter city" required>
+                        placeholder="Select or enter city">
                     <datalist id="cityList">
-                        <?php foreach ($cities as $city): ?>
+                        <?php
+                        $cities_query = "SELECT DISTINCT city FROM location WHERE city != ''";
+                        $cities_result = $conn->query($cities_query);
+                        $cities = [];
+                        if ($cities_result->num_rows > 0) {
+                            while ($city_row = $cities_result->fetch_assoc()) {
+                                $cities[] = $city_row['city'];
+                            }
+                        }
+                        foreach ($cities as $city): ?>
                             <option value="<?php echo htmlspecialchars($city); ?>">
                             <?php endforeach; ?>
                     </datalist>
@@ -375,14 +362,6 @@ if ($cities_result->num_rows > 0) {
                     <input type="number" step="0.01" min="0" max="99999999.99" id="price" name="price" required>
                     <label for="amount_in_stock">Stock:</label>
                     <input type="number" id="amount_in_stock" name="amount_in_stock" min="0" required>
-                    <label for="city_select">Select City:</label>
-                    <select id="city_select" onchange="document.getElementById('city').value = this.value;">
-                        <option value="">Select a city</option>
-                        <?php foreach ($hardcoded_cities as $city): ?>
-                            <option value="<?php echo htmlspecialchars($city); ?>"><?php echo htmlspecialchars($city); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
                     <label for="city">Location (City):</label>
                     <input type="text" id="city" name="city" list="cityList" required
                         placeholder="Select or enter new city">
